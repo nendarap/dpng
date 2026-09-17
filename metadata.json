@@ -1,0 +1,6 @@
+{
+  "name": "SIMPENDIK NON GELAR UNPAD",
+  "description": "Sistem Informasi Data Peserta Pendidikan Non Gelar Universitas Padjadjaran dengan integrasi Google Sheets & Google Apps Script.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
