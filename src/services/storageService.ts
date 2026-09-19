@@ -1,17 +1,24 @@
 import { 
   Peserta, Kategori, Program, UserItem, LogAktivitas, SettingApp, 
-  AdvancedSearchFilter, UserRole 
+  AdvancedSearchFilter, UserRole, PicProgram, EduventureBooking,
+  GroupAkun, MenuPrivilege, AppMenuItemDef
 } from '../types';
 import { 
   DEFAULT_KATEGORI, DEFAULT_PROGRAM, DEFAULT_PESERTA, 
-  DEFAULT_USERS, DEFAULT_LOGS, DEFAULT_SETTING 
+  DEFAULT_USERS, DEFAULT_LOGS, DEFAULT_SETTING, DEFAULT_PIC,
+  DEFAULT_EDUVENTURE
 } from '../data/initialData';
+import { DEFAULT_GROUPS, APP_MENU_DEFINITIONS, ROLE_PRESET_MAP } from '../data/privilegeData';
 
 const STORAGE_KEYS = {
   PESERTA: 'simpendik_unpad_peserta',
   KATEGORI: 'simpendik_unpad_kategori',
   PROGRAM: 'simpendik_unpad_program',
+  PIC: 'simpendik_unpad_pic',
+  EDUVENTURE: 'simpendik_unpad_eduventure',
   USERS: 'simpendik_unpad_users',
+  GROUPS: 'simpendik_unpad_groups',
+  MENUS: 'simpendik_unpad_menus',
   LOGS: 'simpendik_unpad_logs',
   SETTINGS: 'simpendik_unpad_settings',
   ACTIVE_USER: 'simpendik_unpad_active_user',
@@ -29,22 +36,43 @@ export function initLocalStorage(): void {
   if (!localStorage.getItem(STORAGE_KEYS.PROGRAM)) {
     localStorage.setItem(STORAGE_KEYS.PROGRAM, JSON.stringify(DEFAULT_PROGRAM));
   }
+  if (!localStorage.getItem(STORAGE_KEYS.PIC)) {
+    localStorage.setItem(STORAGE_KEYS.PIC, JSON.stringify(DEFAULT_PIC));
+  }
+  if (!localStorage.getItem(STORAGE_KEYS.EDUVENTURE)) {
+    localStorage.setItem(STORAGE_KEYS.EDUVENTURE, JSON.stringify(DEFAULT_EDUVENTURE));
+  }
+  if (!localStorage.getItem(STORAGE_KEYS.GROUPS)) {
+    localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(DEFAULT_GROUPS));
+  }
+  if (!localStorage.getItem(STORAGE_KEYS.MENUS)) {
+    localStorage.setItem(STORAGE_KEYS.MENUS, JSON.stringify(APP_MENU_DEFINITIONS));
+  }
   if (!localStorage.getItem(STORAGE_KEYS.USERS)) {
     localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(DEFAULT_USERS));
   } else {
-    // Pastikan user memiliki kata sandi jika belum ada
+    // Pastikan user memiliki kata sandi dan relasi groupId jika belum ada
     try {
       const storedUsers: UserItem[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
       let updated = false;
       const patched = storedUsers.map(u => {
-        if (!u.password) {
-          updated = true;
-          return {
-            ...u,
-            password: u.role === 'ADMIN' ? 'admin123' : u.role === 'OPERATOR' ? 'operator123' : 'viewer123'
-          };
+        let changed = false;
+        const copy = { ...u };
+        if (!copy.password) {
+          changed = true;
+          copy.password = copy.role === 'ADMIN' ? 'admin123' : copy.role === 'OPERATOR' ? 'operator123' : 'viewer123';
         }
-        return u;
+        if (!copy.groupId) {
+          changed = true;
+          copy.groupId = copy.role;
+          copy.namaGroup = copy.role === 'ADMIN' 
+            ? 'Administrator Utama' 
+            : copy.role === 'OPERATOR' 
+              ? 'Operator Pengelola Data' 
+              : 'Viewer & Pimpinan';
+        }
+        if (changed) updated = true;
+        return copy;
       });
       if (updated) {
         localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(patched));
@@ -203,6 +231,94 @@ export function deleteUser(userId: string): void {
   writeLog('Hapus User', 'USER', userId, `Menghapus user ID ${userId}`);
 }
 
+// Group Akun & Privilege Management
+export function getGroups(): GroupAkun[] {
+  initLocalStorage();
+  const raw = localStorage.getItem(STORAGE_KEYS.GROUPS);
+  return raw ? JSON.parse(raw) : DEFAULT_GROUPS;
+}
+
+export function saveGroup(group: GroupAkun): { success: boolean; message: string; data: GroupAkun } {
+  const groups = getGroups();
+  const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  const idx = groups.findIndex(g => g.id === group.id);
+
+  if (idx >= 0) {
+    groups[idx] = {
+      ...group,
+      updatedAt: now
+    };
+    localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(groups));
+    writeLog('Update Group Akun', 'PRIVILEGE', group.id, `Perbarui konfigurasi group akun "${group.namaGroup}"`);
+    return { success: true, message: `Group akun "${group.namaGroup}" berhasil diperbarui!`, data: groups[idx] };
+  } else {
+    const newGroup: GroupAkun = {
+      ...group,
+      createdAt: now,
+      updatedAt: now
+    };
+    groups.push(newGroup);
+    localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(groups));
+    writeLog('Tambah Group Akun', 'PRIVILEGE', group.id, `Membuat group akun baru "${newGroup.namaGroup}"`);
+    return { success: true, message: `Group akun baru "${newGroup.namaGroup}" berhasil dibuat!`, data: newGroup };
+  }
+}
+
+export function deleteGroup(groupId: string): { success: boolean; message: string } {
+  const groups = getGroups();
+  const target = groups.find(g => g.id === groupId);
+
+  if (!target) {
+    return { success: false, message: 'Group akun tidak ditemukan.' };
+  }
+
+  if (target.isSystem || ['ADMIN', 'OPERATOR', 'VIEWER'].includes(groupId)) {
+    return { success: false, message: `Group sistem "${target.namaGroup}" tidak dapat dihapus demi integritas hak akses.` };
+  }
+
+  // Cek apakah ada user yang masih menggunakan group ini
+  const users = getUsers();
+  const assignedUsers = users.filter(u => u.groupId === groupId || u.role === groupId);
+  if (assignedUsers.length > 0) {
+    return { 
+      success: false, 
+      message: `Tidak dapat menghapus group "${target.namaGroup}" karena masih digunakan oleh ${assignedUsers.length} pengguna aktif.` 
+    };
+  }
+
+  const updated = groups.filter(g => g.id !== groupId);
+  localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(updated));
+  writeLog('Hapus Group Akun', 'PRIVILEGE', groupId, `Menghapus group akun "${target.namaGroup}"`);
+  return { success: true, message: `Group akun "${target.namaGroup}" berhasil dihapus.` };
+}
+
+export function saveAllGroupPrivileges(
+  groupId: string, 
+  privileges: Record<string, MenuPrivilege>
+): { success: boolean; message: string } {
+  const groups = getGroups();
+  const idx = groups.findIndex(g => g.id === groupId);
+  if (idx < 0) {
+    return { success: false, message: `Group akun dengan ID ${groupId} tidak ditemukan.` };
+  }
+
+  groups[idx].privileges = privileges;
+  groups[idx].updatedAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+  localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(groups));
+  writeLog('Update Matriks Privilege', 'PRIVILEGE', groupId, `Memperbarui matriks izin menu untuk group "${groups[idx].namaGroup}"`);
+
+  return { 
+    success: true, 
+    message: `Matriks privilege hak akses menu untuk group "${groups[idx].namaGroup}" berhasil disimpan!` 
+  };
+}
+
+export function resetPrivilegesToDefaults(): void {
+  localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(DEFAULT_GROUPS));
+  writeLog('Reset Privilege', 'PRIVILEGE', 'DEFAULT', 'Matriks hak akses dan group akun dikembalikan ke standar rekomendasi Unpad');
+}
+
 // Audit Log Service
 export function writeLog(aktivitas: string, modul: string, idData: string, keterangan: string): void {
   const currentUser = getCurrentUser();
@@ -303,6 +419,85 @@ export function deleteProgram(idProgram: string): void {
   const list = getProgram().filter(p => p.idProgram !== idProgram);
   localStorage.setItem(STORAGE_KEYS.PROGRAM, JSON.stringify(list));
   writeLog('Hapus Program', 'PROGRAM', idProgram, `Hapus program ID ${idProgram}`);
+}
+
+// PIC / Koordinator Program CRUD
+export function getPic(): PicProgram[] {
+  initLocalStorage();
+  const raw = localStorage.getItem(STORAGE_KEYS.PIC);
+  if (!raw) return DEFAULT_PIC;
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    console.error('Error parsing PIC from localStorage:', e);
+    return DEFAULT_PIC;
+  }
+}
+
+export function getPicById(idPic: string): PicProgram | undefined {
+  return getPic().find(p => p.idPic === idPic);
+}
+
+export function savePic(pic: PicProgram): { success: boolean; message: string; data: PicProgram } {
+  const list = getPic();
+  const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  const idx = list.findIndex(p => p.idPic === pic.idPic);
+
+  if (idx >= 0) {
+    list[idx] = {
+      ...pic,
+      updatedAt: now
+    };
+    localStorage.setItem(STORAGE_KEYS.PIC, JSON.stringify(list));
+    writeLog('Edit PIC', 'PIC', pic.idPic, `Update PIC ${pic.namaLengkap} (${pic.jabatan || 'Koordinator'})`);
+    return { success: true, message: `Data PIC ${pic.namaLengkap} berhasil diperbarui!`, data: list[idx] };
+  } else {
+    // Generate sequential ID
+    let maxSeq = 0;
+    list.forEach(p => {
+      if (p.idPic && p.idPic.startsWith('PIC-')) {
+        const num = parseInt(p.idPic.replace('PIC-', ''), 10);
+        if (!isNaN(num) && num > maxSeq) maxSeq = num;
+      }
+    });
+    const newId = `PIC-${String(maxSeq + 1).padStart(3, '0')}`;
+    const newPic: PicProgram = {
+      ...pic,
+      idPic: newId,
+      createdAt: now,
+      updatedAt: now
+    };
+    list.push(newPic);
+    localStorage.setItem(STORAGE_KEYS.PIC, JSON.stringify(list));
+    writeLog('Tambah PIC', 'PIC', newId, `Tambah PIC baru ${newPic.namaLengkap} (${newPic.jabatan || 'Koordinator'})`);
+    return { success: true, message: `PIC baru ${newPic.namaLengkap} berhasil ditambahkan!`, data: newPic };
+  }
+}
+
+export function deletePic(idPic: string): { success: boolean; message: string } {
+  const list = getPic();
+  const target = list.find(p => p.idPic === idPic);
+  if (!target) {
+    return { success: false, message: 'Data PIC tidak ditemukan.' };
+  }
+
+  // Check if any participants are assigned to this PIC
+  const pesertaList = getPeserta();
+  const activeAssigned = pesertaList.filter(
+    p => p.idPic === idPic || (p.pic && target.namaLengkap && p.pic.toLowerCase().includes(target.namaLengkap.toLowerCase()))
+  );
+
+  if (activeAssigned.length > 0) {
+    return {
+      success: false,
+      message: `Tidak dapat menghapus PIC "${target.namaLengkap}" karena masih terkait dengan ${activeAssigned.length} peserta terdaftar.`
+    };
+  }
+
+  const updated = list.filter(p => p.idPic !== idPic);
+  localStorage.setItem(STORAGE_KEYS.PIC, JSON.stringify(updated));
+  writeLog('Hapus PIC', 'PIC', idPic, `Hapus PIC ${target.namaLengkap} (ID: ${idPic})`);
+  return { success: true, message: `PIC ${target.namaLengkap} berhasil dihapus dari database.` };
 }
 
 // Peserta CRUD & Concurrency ID Protection
@@ -517,13 +712,455 @@ export function advancedSearchPeserta(filters: Partial<AdvancedSearchFilter>): P
   return list;
 }
 
+// Eduventure CRUD Operations
+export function getEduventure(): EduventureBooking[] {
+  initLocalStorage();
+  const raw = localStorage.getItem(STORAGE_KEYS.EDUVENTURE);
+  return raw ? JSON.parse(raw) : DEFAULT_EDUVENTURE;
+}
+
+export function generateNextIdEduventure(tahun?: number): string {
+  const yr = tahun || new Date().getFullYear();
+  const list = getEduventure();
+  const prefix = `EDV-${yr}-`;
+
+  let maxSeq = 0;
+  list.forEach(item => {
+    if (item.id && item.id.startsWith(prefix)) {
+      const numPart = parseInt(item.id.replace(prefix, ''), 10);
+      if (!isNaN(numPart) && numPart > maxSeq) {
+        maxSeq = numPart;
+      }
+    }
+  });
+
+  return `${prefix}${String(maxSeq + 1).padStart(4, '0')}`;
+}
+
+export function saveEduventure(booking: EduventureBooking): { success: boolean; message: string; data: EduventureBooking } {
+  const list = getEduventure();
+  const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  const idx = list.findIndex(item => item.id === booking.id);
+
+  if (idx >= 0) {
+    list[idx] = {
+      ...booking,
+      updatedAt: now
+    };
+    localStorage.setItem(STORAGE_KEYS.EDUVENTURE, JSON.stringify(list));
+    writeLog('Edit Eduventure', 'EDUVENTURE', booking.id, `Update kunjungan Eduventure ${booking.namaSekolah} (${booking.skemaPaket})`);
+    return { success: true, message: `Data kunjungan ${booking.namaSekolah} berhasil diperbarui!`, data: list[idx] };
+  } else {
+    const yr = new Date(booking.tanggalPelaksanaan || new Date()).getFullYear();
+    const newId = booking.id && !booking.id.startsWith('temp-') ? booking.id : generateNextIdEduventure(yr);
+    const newBooking: EduventureBooking = {
+      ...booking,
+      id: newId,
+      createdAt: now,
+      updatedAt: now
+    };
+    list.unshift(newBooking);
+    localStorage.setItem(STORAGE_KEYS.EDUVENTURE, JSON.stringify(list));
+    writeLog('Tambah Eduventure', 'EDUVENTURE', newId, `Daftar kunjungan Eduventure baru ${newBooking.namaSekolah} (${newBooking.skemaPaket})`);
+    return { success: true, message: `Pendaftaran kunjungan ${newBooking.namaSekolah} berhasil disimpan!`, data: newBooking };
+  }
+}
+
+export function deleteEduventure(id: string): { success: boolean; message: string } {
+  const list = getEduventure();
+  const target = list.find(item => item.id === id);
+  if (!target) {
+    return { success: false, message: 'Data kunjungan Eduventure tidak ditemukan.' };
+  }
+
+  const updated = list.filter(item => item.id !== id);
+  localStorage.setItem(STORAGE_KEYS.EDUVENTURE, JSON.stringify(updated));
+  writeLog('Hapus Eduventure', 'EDUVENTURE', id, `Hapus kunjungan ${target.namaSekolah} (ID: ${id})`);
+  return { success: true, message: `Kunjungan ${target.namaSekolah} berhasil dihapus.` };
+}
+
 // Reset / Initialize Database
 export function initializeDatabaseToDefaults(): void {
   localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(DEFAULT_PESERTA));
   localStorage.setItem(STORAGE_KEYS.KATEGORI, JSON.stringify(DEFAULT_KATEGORI));
   localStorage.setItem(STORAGE_KEYS.PROGRAM, JSON.stringify(DEFAULT_PROGRAM));
+  localStorage.setItem(STORAGE_KEYS.PIC, JSON.stringify(DEFAULT_PIC));
+  localStorage.setItem(STORAGE_KEYS.EDUVENTURE, JSON.stringify(DEFAULT_EDUVENTURE));
+  localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(DEFAULT_GROUPS));
   localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(DEFAULT_USERS));
+  localStorage.setItem(STORAGE_KEYS.MENUS, JSON.stringify(APP_MENU_DEFINITIONS));
   localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(DEFAULT_SETTING));
   
-  writeLog('Inisialisasi Database', 'SETUP', 'DEFAULT_SEED', 'Database Google Sheets direset ke struktur awal');
+  writeLog('Inisialisasi Database', 'SETUP', 'DEFAULT_SEED', 'Database Google Sheets direset ke struktur awal Unpad (Peserta, Kategori, Program, PIC, Eduventure, Group Akun & Privilege, Menus, Users)');
 }
+
+// ==========================================
+// MENU MANAGEMENT & RELATIONS (GROUP & USER)
+// ==========================================
+
+export function getAppMenus(): AppMenuItemDef[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.MENUS);
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.MENUS, JSON.stringify(APP_MENU_DEFINITIONS));
+      return APP_MENU_DEFINITIONS;
+    }
+    const parsed: AppMenuItemDef[] = JSON.parse(raw);
+    
+    // Pastikan semua menu default ada (misal menu baru seperti menu_manage atau eduventure)
+    const existingIds = new Set(parsed.map(m => m.id));
+    let hasNew = false;
+    APP_MENU_DEFINITIONS.forEach(def => {
+      if (!existingIds.has(def.id)) {
+        parsed.push(def);
+        hasNew = true;
+      }
+    });
+
+    // Urutkan berdasarkan property urutan jika ada
+    parsed.sort((a, b) => (a.urutan || 99) - (b.urutan || 99));
+
+    if (hasNew) {
+      localStorage.setItem(STORAGE_KEYS.MENUS, JSON.stringify(parsed));
+    }
+    return parsed;
+  } catch {
+    return APP_MENU_DEFINITIONS;
+  }
+}
+
+export function saveAppMenu(menu: AppMenuItemDef): { success: boolean; message: string; data?: AppMenuItemDef } {
+  const list = getAppMenus();
+  const idx = list.findIndex(m => m.id === menu.id);
+
+  if (idx >= 0) {
+    list[idx] = {
+      ...list[idx],
+      ...menu,
+    };
+    localStorage.setItem(STORAGE_KEYS.MENUS, JSON.stringify(list));
+    writeLog('Edit Menu', 'MENU', menu.id, `Pembaruan pengaturan menu ${menu.label} (${menu.id})`);
+    return { success: true, message: `Menu "${menu.label}" berhasil diperbarui!`, data: list[idx] };
+  } else {
+    // Menu Baru
+    const newMenu: AppMenuItemDef = {
+      ...menu,
+      urutan: menu.urutan || list.length + 1,
+      aktif: menu.aktif !== undefined ? menu.aktif : true,
+      isCustom: true
+    };
+    list.push(newMenu);
+    localStorage.setItem(STORAGE_KEYS.MENUS, JSON.stringify(list));
+
+    // Berikan akses otomatis ke group ADMIN untuk menu baru
+    const groups = getGroups();
+    groups.forEach(g => {
+      if (g.id === 'ADMIN') {
+        g.privileges[newMenu.id] = {
+          canAccess: true,
+          canCreate: newMenu.supportedActions.canCreate,
+          canEdit: newMenu.supportedActions.canEdit,
+          canDelete: newMenu.supportedActions.canDelete,
+          canExport: newMenu.supportedActions.canExport
+        };
+      } else {
+        g.privileges[newMenu.id] = {
+          canAccess: false,
+          canCreate: false,
+          canEdit: false,
+          canDelete: false,
+          canExport: false
+        };
+      }
+    });
+    localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(groups));
+
+    writeLog('Tambah Menu', 'MENU', newMenu.id, `Penambahan menu baru "${newMenu.label}" (${newMenu.id})`);
+    return { success: true, message: `Menu baru "${newMenu.label}" berhasil ditambahkan!`, data: newMenu };
+  }
+}
+
+export function deleteAppMenu(menuId: string): { success: boolean; message: string } {
+  const list = getAppMenus();
+  const target = list.find(m => m.id === menuId);
+  if (!target) {
+    return { success: false, message: 'Menu tidak ditemukan.' };
+  }
+
+  // Lindungi menu sistem utama dari penghapusan total
+  const protectedIds = ['dashboard', 'user', 'setting'];
+  if (protectedIds.includes(menuId)) {
+    return { success: false, message: `Menu "${target.label}" merupakan menu inti sistem dan tidak boleh dihapus.` };
+  }
+
+  const updated = list.filter(m => m.id !== menuId);
+  localStorage.setItem(STORAGE_KEYS.MENUS, JSON.stringify(updated));
+
+  // Bersihkan juga dari privileges seluruh group
+  const groups = getGroups();
+  groups.forEach(g => {
+    delete g.privileges[menuId];
+  });
+  localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(groups));
+
+  // Bersihkan juga dari custom privileges pengguna
+  const users = getUsers();
+  let usersChanged = false;
+  users.forEach(u => {
+    if (u.customPrivileges && u.customPrivileges[menuId]) {
+      delete u.customPrivileges[menuId];
+      usersChanged = true;
+    }
+  });
+  if (usersChanged) {
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+  }
+
+  writeLog('Hapus Menu', 'MENU', menuId, `Menghapus konfigurasi menu ${target.label} (${menuId})`);
+  return { success: true, message: `Menu "${target.label}" berhasil dihapus dari sistem.` };
+}
+
+export function toggleMenuStatus(menuId: string, aktif: boolean): { success: boolean; message: string } {
+  const list = getAppMenus();
+  const idx = list.findIndex(m => m.id === menuId);
+  if (idx < 0) {
+    return { success: false, message: 'Menu tidak ditemukan.' };
+  }
+
+  list[idx].aktif = aktif;
+  localStorage.setItem(STORAGE_KEYS.MENUS, JSON.stringify(list));
+  writeLog('Status Menu', 'MENU', menuId, `Mengubah status menu ${list[idx].label} menjadi ${aktif ? 'Aktif' : 'Nonaktif'}`);
+  return { 
+    success: true, 
+    message: `Menu "${list[idx].label}" kini berstatus ${aktif ? 'Aktif (Tampil di Navigasi)' : 'Nonaktif (Disembunyikan)'}.` 
+  };
+}
+
+export function updateMenuOrder(orderedIds: string[]): { success: boolean; message: string } {
+  const list = getAppMenus();
+  const map = new Map(list.map(m => [m.id, m]));
+  
+  const reordered: AppMenuItemDef[] = [];
+  orderedIds.forEach((id, index) => {
+    const item = map.get(id);
+    if (item) {
+      item.urutan = index + 1;
+      reordered.push(item);
+      map.delete(id);
+    }
+  });
+
+  // Masukkan sisa menu yang tidak ada di list
+  map.forEach((item) => {
+    item.urutan = reordered.length + 1;
+    reordered.push(item);
+  });
+
+  localStorage.setItem(STORAGE_KEYS.MENUS, JSON.stringify(reordered));
+  writeLog('Urutan Menu', 'MENU', 'REORDER', 'Memperbarui urutan susunan menu aplikasi');
+  return { success: true, message: 'Urutan menu navigasi berhasil diperbarui!' };
+}
+
+export function resetMenusToDefault(): void {
+  localStorage.setItem(STORAGE_KEYS.MENUS, JSON.stringify(APP_MENU_DEFINITIONS));
+  writeLog('Reset Menu', 'MENU', 'DEFAULT', 'Mengembalikan seluruh konfigurasi menu ke standar Unpad');
+}
+
+// Hubungkan Menu ke Group Akun
+export function updateMenuGroupsAccess(
+  menuId: string, 
+  groupPrivilegeMap: Record<string, MenuPrivilege>
+): { success: boolean; message: string } {
+  const groups = getGroups();
+  let updatedCount = 0;
+
+  groups.forEach(g => {
+    if (groupPrivilegeMap[g.id]) {
+      g.privileges[menuId] = { ...groupPrivilegeMap[g.id] };
+      g.updatedAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      updatedCount++;
+    }
+  });
+
+  localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(groups));
+  writeLog('Relasi Menu-Group', 'MENU_GROUP', menuId, `Pembaruan hak akses ${updatedCount} group akun untuk menu ${menuId}`);
+  return { success: true, message: `Hak akses menu berhasil disinkronkan ke ${updatedCount} Group Akun!` };
+}
+
+// Hubungkan Menu ke User Pengguna (User-Level Custom Privilege Override)
+export function updateUserMenuOverride(
+  userId: string, 
+  menuId: string, 
+  override: Partial<MenuPrivilege> | null
+): { success: boolean; message: string } {
+  const users = getUsers();
+  const target = users.find(u => u.userId === userId);
+  if (!target) {
+    return { success: false, message: 'Pengguna tidak ditemukan.' };
+  }
+
+  if (!target.customPrivileges) {
+    target.customPrivileges = {};
+  }
+
+  if (override === null) {
+    // Hapus override (kembali ikut group)
+    delete target.customPrivileges[menuId];
+    if (Object.keys(target.customPrivileges).length === 0) {
+      delete target.customPrivileges;
+    }
+    writeLog('Reset Privilege User', 'USER_MENU', userId, `Reset override menu ${menuId} pada user ${target.nama} (kembali ikuti Group)`);
+  } else {
+    // Set custom override
+    target.customPrivileges[menuId] = {
+      ...(target.customPrivileges[menuId] || {}),
+      ...override
+    };
+    writeLog('Override Privilege User', 'USER_MENU', userId, `Atur hak khusus menu ${menuId} pada user ${target.nama}`);
+  }
+
+  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+
+  // Jika user aktif yang diubah, perbarui active user session
+  const activeUser = getCurrentUser();
+  if (activeUser.userId === userId) {
+    const updatedActive = { ...activeUser, customPrivileges: target.customPrivileges };
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_USER, JSON.stringify(updatedActive));
+  }
+
+  return { 
+    success: true, 
+    message: override === null 
+      ? `Hak akses user ${target.nama} dikembalikan mengikuti Group Akun.` 
+      : `Hak akses khusus untuk user ${target.nama} pada menu ini berhasil disimpan!` 
+  };
+}
+
+// Batch Update User Overrides untuk satu Menu
+export function batchUpdateUserMenuOverrides(
+  menuId: string, 
+  userOverrides: Record<string, Partial<MenuPrivilege> | null>
+): { success: boolean; message: string } {
+  const users = getUsers();
+  let changed = 0;
+
+  users.forEach(u => {
+    if (u.userId in userOverrides) {
+      const ov = userOverrides[u.userId];
+      if (!u.customPrivileges) u.customPrivileges = {};
+
+      if (ov === null) {
+        delete u.customPrivileges[menuId];
+        if (Object.keys(u.customPrivileges).length === 0) {
+          delete u.customPrivileges;
+        }
+      } else {
+        u.customPrivileges[menuId] = {
+          ...(u.customPrivileges[menuId] || {}),
+          ...ov
+        };
+      }
+      changed++;
+    }
+  });
+
+  if (changed > 0) {
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+    writeLog('Batch Override User Menu', 'USER_MENU', menuId, `Update hak khusus menu ${menuId} pada ${changed} pengguna`);
+  }
+
+  return { success: true, message: `Hak akses ${changed} pengguna berhasil disimpan!` };
+}
+
+// Terapkan Template Hak Akses Role Bawaan ke Group Akun
+export function applyRolePresetToGroup(
+  groupId: string, 
+  presetKey: 'ADMIN' | 'OPERATOR' | 'VIEWER' | 'KEUANGAN' | 'KOORDINATOR_PROGRAM'
+): { success: boolean; message: string } {
+  const groups = getGroups();
+  const targetGroup = groups.find(g => g.id === groupId);
+  if (!targetGroup) {
+    return { success: false, message: 'Group Akun tidak ditemukan.' };
+  }
+
+  const preset = ROLE_PRESET_MAP[presetKey];
+  if (!preset) {
+    return { success: false, message: `Template role "${presetKey}" tidak valid.` };
+  }
+
+  targetGroup.privileges = JSON.parse(JSON.stringify(preset));
+  targetGroup.updatedAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+  localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(groups));
+  writeLog('Terapkan Preset Role', 'MENU_GROUP', groupId, `Menerapkan template role ${presetKey} ke Group ${targetGroup.namaGroup}`);
+
+  return { success: true, message: `Berhasil menerapkan template hak akses "${presetKey}" ke Group "${targetGroup.namaGroup}"!` };
+}
+
+// Toggle Akses Menu Tunggal untuk Group Akun
+export function toggleGroupMenuAccess(
+  groupId: string, 
+  menuId: string, 
+  canAccess: boolean
+): { success: boolean; message: string } {
+  const groups = getGroups();
+  const targetGroup = groups.find(g => g.id === groupId);
+  if (!targetGroup) {
+    return { success: false, message: 'Group Akun tidak ditemukan.' };
+  }
+
+  if (!targetGroup.privileges) {
+    targetGroup.privileges = {};
+  }
+
+  if (!targetGroup.privileges[menuId]) {
+    targetGroup.privileges[menuId] = {
+      canAccess,
+      canCreate: canAccess,
+      canEdit: canAccess,
+      canDelete: canAccess,
+      canExport: canAccess
+    };
+  } else {
+    targetGroup.privileges[menuId].canAccess = canAccess;
+  }
+
+  targetGroup.updatedAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(groups));
+
+  return { 
+    success: true, 
+    message: `Akses menu "${menuId}" untuk group "${targetGroup.namaGroup}" ${canAccess ? 'diaktifkan' : 'dinonaktifkan'}.` 
+  };
+}
+
+// Reset Semua Override Khusus pada Pengguna (kembali 100% mengikuti Group Akun)
+export function resetUserPrivilegeOverrides(userId: string): { success: boolean; message: string } {
+  const users = getUsers();
+  const target = users.find(u => u.userId === userId);
+  if (!target) {
+    return { success: false, message: 'Pengguna tidak ditemukan.' };
+  }
+
+  delete target.customPrivileges;
+  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+
+  const activeUser = getCurrentUser();
+  if (activeUser.userId === userId) {
+    delete activeUser.customPrivileges;
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_USER, JSON.stringify(activeUser));
+  }
+
+  writeLog('Reset Override User', 'USER_MENU', userId, `Reset seluruh custom privilege pada user ${target.nama}`);
+  return { success: true, message: `Seluruh hak khusus user ${target.nama} telah direset. Akses sekarang 100% mengikuti Group Akun.` };
+}
+
+// Set Langsung Akses Menu untuk User (Override CanAccess)
+export function setUserMenuAccessOverride(
+  userId: string, 
+  menuId: string, 
+  canAccess: boolean
+): { success: boolean; message: string } {
+  return updateUserMenuOverride(userId, menuId, { canAccess });
+}
+

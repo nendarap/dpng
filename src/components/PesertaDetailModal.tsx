@@ -4,7 +4,7 @@ import {
   Briefcase, GraduationCap, Award, Calendar, DollarSign, 
   MapPin, ShieldCheck, QrCode
 } from 'lucide-react';
-import { Peserta, UserRole } from '../types';
+import { Peserta, UserRole, PicProgram } from '../types';
 
 interface PesertaDetailModalProps {
   peserta: Peserta | null;
@@ -12,6 +12,7 @@ interface PesertaDetailModalProps {
   onClose: () => void;
   onEdit?: (peserta: Peserta) => void;
   userRole: UserRole;
+  picList?: PicProgram[];
 }
 
 export const PesertaDetailModal: React.FC<PesertaDetailModalProps> = ({
@@ -20,12 +21,24 @@ export const PesertaDetailModal: React.FC<PesertaDetailModalProps> = ({
   onClose,
   onEdit,
   userRole,
+  picList = [],
 }) => {
   const [activeTab, setActiveTab] = useState<'biodata' | 'program' | 'cetak'>('biodata');
 
   if (!isOpen || !peserta) return null;
 
   const fullName = [peserta.gelarDepan, peserta.namaLengkap, peserta.gelarBelakang].filter(Boolean).join(' ');
+
+  // Lookup matched PIC from picList
+  const matchedPic = picList.find(p => {
+    if (peserta.idPic && p.idPic === peserta.idPic) return true;
+    if (peserta.pic) {
+      const full = [p.gelarDepan, p.namaLengkap, p.gelarBelakang].filter(Boolean).join(' ');
+      return full.toLowerCase() === peserta.pic.toLowerCase() ||
+             peserta.pic.toLowerCase().includes(p.namaLengkap.toLowerCase());
+    }
+    return false;
+  });
 
   const handlePrint = () => {
     window.print();
@@ -260,7 +273,26 @@ export const PesertaDetailModal: React.FC<PesertaDetailModalProps> = ({
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[11px]">PIC / Koordinator:</span>
-                    <span className="text-slate-800">{peserta.pic || '-'}</span>
+                    <span className="text-slate-900 font-semibold">{peserta.pic || '-'}</span>
+                    {matchedPic && (
+                      <div className="text-[11px] text-slate-500 mt-1 flex flex-wrap items-center gap-1.5 bg-blue-50/60 p-2 rounded-lg border border-blue-100">
+                        <span className="font-semibold text-[#002B66]">{matchedPic.jabatan}</span>
+                        <span>•</span>
+                        <span>{matchedPic.unitFakultas}</span>
+                        {matchedPic.nomorHp && (
+                          <>
+                            <span>•</span>
+                            <span className="text-emerald-700 font-medium font-mono">WA: {matchedPic.nomorHp}</span>
+                          </>
+                        )}
+                        {matchedPic.email && (
+                          <>
+                            <span>•</span>
+                            <span className="text-slate-600">{matchedPic.email}</span>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

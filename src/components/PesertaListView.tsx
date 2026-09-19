@@ -74,7 +74,8 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
           p.nip.toLowerCase().includes(q) ||
           p.email.toLowerCase().includes(q) ||
           p.instansi.toLowerCase().includes(q) ||
-          p.namaProgram.toLowerCase().includes(q);
+          p.namaProgram.toLowerCase().includes(q) ||
+          (p.pic && p.pic.toLowerCase().includes(q));
         if (!match) return false;
       }
 

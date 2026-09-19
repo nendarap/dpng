@@ -8,6 +8,7 @@ import { PesertaDetailModal } from './components/PesertaDetailModal';
 import { AdvancedSearchView } from './components/AdvancedSearchView';
 import { KategoriView } from './components/KategoriView';
 import { ProgramView } from './components/ProgramView';
+import { PicKoordinatorView } from './components/PicKoordinatorView';
 import { ImportView } from './components/ImportView';
 import { ExportView } from './components/ExportView';
 import { StatistikView } from './components/StatistikView';
@@ -17,20 +18,27 @@ import { PengaturanView } from './components/PengaturanView';
 import { GasSourceModal } from './components/GasSourceModal';
 import { LoginView } from './components/LoginView';
 import { MapDashboardView } from './components/MapDashboardView';
+import { EduventureView } from './components/EduventureView';
 
 import { 
-  Peserta, Kategori, Program, UserItem, LogAktivitas, SettingApp, UserRole 
+  Peserta, Kategori, Program, PicProgram, UserItem, LogAktivitas, SettingApp, UserRole,
+  EduventureBooking, GroupAkun, MenuPrivilege, AppMenuId
 } from './types';
 import { 
   getPeserta, createPeserta, updatePeserta, deletePeserta,
   getKategori, saveKategori, deleteKategori,
   getProgram, saveProgram, deleteProgram,
+  getPic, savePic, deletePic,
+  getEduventure, saveEduventure, deleteEduventure,
   getUsers, saveUser, deleteUser,
+  getGroups, saveGroup, deleteGroup, saveAllGroupPrivileges, resetPrivilegesToDefaults,
+  getAppMenus,
   getLogs, getSettings, saveSettings,
   getCurrentUser, setActiveUserRole, initializeDatabaseToDefaults, initLocalStorage,
   isUserLoggedIn, logoutUser
 } from './services/storageService';
-import { CheckCircle2, AlertCircle, X } from 'lucide-react';
+import { hasMenuAccess } from './data/privilegeData';
+import { CheckCircle2, AlertCircle, X, Lock, ShieldAlert } from 'lucide-react';
 
 export default function App() {
   // Initialize storage
@@ -46,6 +54,9 @@ export default function App() {
   const [pesertaList, setPesertaList] = useState<Peserta[]>(getPeserta());
   const [kategoriList, setKategoriList] = useState<Kategori[]>(getKategori());
   const [programList, setProgramList] = useState<Program[]>(getProgram());
+  const [picList, setPicList] = useState<PicProgram[]>(getPic());
+  const [eduventureList, setEduventureList] = useState<EduventureBooking[]>(getEduventure());
+  const [groups, setGroups] = useState<GroupAkun[]>(() => getGroups());
   const [users, setUsers] = useState<UserItem[]>(getUsers());
   const [logs, setLogs] = useState<LogAktivitas[]>(getLogs());
   const [settings, setSettings] = useState<SettingApp>(getSettings());
@@ -73,6 +84,9 @@ export default function App() {
     setPesertaList(getPeserta());
     setKategoriList(getKategori());
     setProgramList(getProgram());
+    setPicList(getPic());
+    setEduventureList(getEduventure());
+    setGroups(getGroups());
     setUsers(getUsers());
     setLogs(getLogs());
     setSettings(getSettings());
@@ -97,6 +111,64 @@ export default function App() {
     const updated = setActiveUserRole(newRole);
     setCurrentUser(updated);
     showToast(`Hak akses simulasi beralih ke: ${newRole}`);
+  };
+
+  // Group Switcher Handler
+  const handleGroupChange = (newGroupId: string) => {
+    const currentGroups = getGroups();
+    const targetGroup = currentGroups.find(g => g.id === newGroupId);
+    const roleMapping: UserRole = newGroupId === 'ADMIN' 
+      ? 'ADMIN' 
+      : newGroupId === 'VIEWER' 
+        ? 'VIEWER' 
+        : 'OPERATOR';
+
+    const updatedUser: UserItem = {
+      ...currentUser,
+      groupId: newGroupId,
+      role: roleMapping,
+      namaGroup: targetGroup?.namaGroup || newGroupId
+    };
+    setCurrentUser(updatedUser);
+    localStorage.setItem('simpendik_unpad_active_user', JSON.stringify(updatedUser));
+    showToast(`Simulasi beralih ke Group: ${updatedUser.namaGroup}`);
+  };
+
+  // Group Akun & Privilege Handlers
+  const handleSaveGroup = (group: GroupAkun) => {
+    const res = saveGroup(group);
+    if (res.success) {
+      showToast(res.message);
+      refreshAllData();
+    } else {
+      showToast(res.message, 'error');
+    }
+  };
+
+  const handleDeleteGroup = (groupId: string) => {
+    const res = deleteGroup(groupId);
+    if (res.success) {
+      showToast(res.message);
+      refreshAllData();
+    } else {
+      showToast(res.message, 'error');
+    }
+  };
+
+  const handleSaveGroupPrivileges = (groupId: string, privileges: Record<string, MenuPrivilege>) => {
+    const res = saveAllGroupPrivileges(groupId, privileges);
+    if (res.success) {
+      showToast(res.message);
+      refreshAllData();
+    } else {
+      showToast(res.message, 'error');
+    }
+  };
+
+  const handleResetPrivileges = () => {
+    resetPrivilegesToDefaults();
+    showToast('Seluruh matriks hak akses dikembalikan ke standar Unpad.');
+    refreshAllData();
   };
 
   // Peserta Handlers
@@ -157,6 +229,48 @@ export default function App() {
     deleteProgram(idProg);
     showToast('Program berhasil dihapus.');
     refreshAllData();
+  };
+
+  // PIC / Koordinator Program Handlers
+  const handleSavePic = (pic: PicProgram) => {
+    const res = savePic(pic);
+    if (res.success) {
+      showToast(res.message);
+      refreshAllData();
+    } else {
+      showToast(res.message, 'error');
+    }
+  };
+
+  const handleDeletePic = (idPic: string) => {
+    const res = deletePic(idPic);
+    if (res.success) {
+      showToast(res.message);
+      refreshAllData();
+    } else {
+      showToast(res.message, 'error');
+    }
+  };
+
+  // Eduventure Handlers
+  const handleSaveEduventure = (item: EduventureBooking) => {
+    const res = saveEduventure(item);
+    if (res.success) {
+      showToast(res.message);
+      refreshAllData();
+    } else {
+      showToast(res.message, 'error');
+    }
+  };
+
+  const handleDeleteEduventure = (id: string) => {
+    const res = deleteEduventure(id);
+    if (res.success) {
+      showToast(res.message);
+      refreshAllData();
+    } else {
+      showToast(res.message, 'error');
+    }
   };
 
   // User Handlers
@@ -233,7 +347,9 @@ export default function App() {
       {/* Top Navbar */}
       <Navbar
         currentUser={currentUser}
+        groups={groups}
         onRoleChange={handleRoleChange}
+        onGroupChange={handleGroupChange}
         onOpenGasModal={() => setIsGasModalOpen(true)}
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         isSidebarOpen={isSidebarOpen}
@@ -256,6 +372,8 @@ export default function App() {
             }
           }}
           userRole={currentUser.role}
+          currentUser={currentUser}
+          groups={groups}
           isOpen={isSidebarOpen}
           onCloseMobile={() => setIsSidebarOpen(false)}
           onLogout={handleLogout}
@@ -263,147 +381,226 @@ export default function App() {
 
         {/* Dynamic Center Stage */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 custom-scrollbar">
-          {activeTab === 'dashboard' && (
-            <DashboardView
-              pesertaList={pesertaList}
-              kategoriList={kategoriList}
-              programList={programList}
-              recentLogs={logs}
-              onNavigateToPeserta={(filters) => {
-                setActiveTab('peserta');
-              }}
-              onNavigateToTambah={() => {
-                setEditPeserta(null);
-                setActiveTab('tambah');
-              }}
-              onNavigateToMap={() => {
-                setActiveTab('map_dashboard');
-              }}
-            />
-          )}
+          {/* Access Control Guard: Check if active menu is allowed for current user */}
+          {!hasMenuAccess(currentUser, groups, activeTab as AppMenuId, getAppMenus()) ? (
+            <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center max-w-lg mx-auto my-12 shadow-sm animate-in fade-in">
+              <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-4 border border-rose-200">
+                <Lock className="w-7 h-7" />
+              </div>
+              <h2 className="text-lg font-black text-slate-800 mb-1">
+                Akses Menu Terkunci
+              </h2>
+              <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+                Group akun <strong>{currentUser.namaGroup || currentUser.role}</strong> tidak memiliki wewenang untuk membuka menu <strong>"{activeTab}"</strong>. Silakan hubungi Administrator untuk penyesuaian hak akses.
+              </p>
+              <div className="flex justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('dashboard')}
+                  className="px-4 py-2 bg-[#002B66] hover:bg-[#083a7e] text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
+                >
+                  Kembali ke Dashboard
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {activeTab === 'dashboard' && (
+                <DashboardView
+                  pesertaList={pesertaList}
+                  kategoriList={kategoriList}
+                  programList={programList}
+                  recentLogs={logs}
+                  onNavigateToPeserta={(filters) => {
+                    setActiveTab('peserta');
+                  }}
+                  onNavigateToTambah={() => {
+                    setEditPeserta(null);
+                    setActiveTab('tambah');
+                  }}
+                  onNavigateToMap={() => {
+                    setActiveTab('map_dashboard');
+                  }}
+                />
+              )}
 
-          {activeTab === 'map_dashboard' && (
-            <MapDashboardView
-              pesertaList={pesertaList}
-              kategoriList={kategoriList}
-              programList={programList}
-              onNavigateToPeserta={(filters) => {
-                setActiveTab('peserta');
-              }}
-            />
-          )}
+              {activeTab === 'map_dashboard' && (
+                <MapDashboardView
+                  pesertaList={pesertaList}
+                  kategoriList={kategoriList}
+                  programList={programList}
+                  onNavigateToPeserta={(filters) => {
+                    setActiveTab('peserta');
+                  }}
+                />
+              )}
 
-          {activeTab === 'peserta' && (
-            <PesertaListView
-              pesertaList={pesertaList}
-              userRole={currentUser.role}
-              onViewDetail={(p) => setDetailPeserta(p)}
-              onEditPeserta={(p) => {
-                setEditPeserta(p);
-                setActiveTab('tambah');
-              }}
-              onDeletePeserta={handleDeletePeserta}
-              onNavigateTambah={() => {
-                setEditPeserta(null);
-                setActiveTab('tambah');
-              }}
-              onExport={() => setActiveTab('export')}
-            />
-          )}
+              {activeTab === 'peserta' && (
+                <PesertaListView
+                  pesertaList={pesertaList}
+                  userRole={currentUser.role}
+                  onViewDetail={(p) => setDetailPeserta(p)}
+                  onEditPeserta={(p) => {
+                    setEditPeserta(p);
+                    setActiveTab('tambah');
+                  }}
+                  onDeletePeserta={handleDeletePeserta}
+                  onNavigateTambah={() => {
+                    setEditPeserta(null);
+                    setActiveTab('tambah');
+                  }}
+                  onExport={() => setActiveTab('export')}
+                />
+              )}
 
-          {activeTab === 'tambah' && (
-            <PesertaFormView
-              initialData={editPeserta}
-              kategoriList={kategoriList}
-              programList={programList}
-              userRole={currentUser.role}
-              onSave={handleSavePeserta}
-              onCancel={() => {
-                setEditPeserta(null);
-                setActiveTab('peserta');
-              }}
-              onViewExisting={(p) => setDetailPeserta(p)}
-            />
-          )}
+              {activeTab === 'tambah' && (
+                <PesertaFormView
+                  initialData={editPeserta}
+                  kategoriList={kategoriList}
+                  programList={programList}
+                  picList={picList}
+                  onQuickAddPic={(newPic) => handleSavePic(newPic)}
+                  userRole={currentUser.role}
+                  onSave={handleSavePeserta}
+                  onCancel={() => {
+                    setEditPeserta(null);
+                    setActiveTab('peserta');
+                  }}
+                  onViewExisting={(p) => setDetailPeserta(p)}
+                />
+              )}
 
-          {activeTab === 'kategori' && (
-            <KategoriView
-              kategoriList={kategoriList}
-              pesertaList={pesertaList}
-              userRole={currentUser.role}
-              onSaveKategori={handleSaveKategori}
-              onDeleteKategori={handleDeleteKategori}
-            />
-          )}
+              {activeTab === 'kategori' && (
+                <KategoriView
+                  kategoriList={kategoriList}
+                  pesertaList={pesertaList}
+                  userRole={currentUser.role}
+                  onSaveKategori={handleSaveKategori}
+                  onDeleteKategori={handleDeleteKategori}
+                  onNavigateToEduventure={() => setActiveTab('eduventure')}
+                />
+              )}
 
-          {activeTab === 'program' && (
-            <ProgramView
-              programList={programList}
-              kategoriList={kategoriList}
-              pesertaList={pesertaList}
-              userRole={currentUser.role}
-              onSaveProgram={handleSaveProgram}
-              onDeleteProgram={handleDeleteProgram}
-            />
-          )}
+              {activeTab === 'program' && (
+                <ProgramView
+                  programList={programList}
+                  kategoriList={kategoriList}
+                  pesertaList={pesertaList}
+                  userRole={currentUser.role}
+                  onSaveProgram={handleSaveProgram}
+                  onDeleteProgram={handleDeleteProgram}
+                />
+              )}
 
-          {activeTab === 'search' && (
-            <AdvancedSearchView
-              kategoriList={kategoriList}
-              programList={programList}
-              userRole={currentUser.role}
-              onViewDetail={(p) => setDetailPeserta(p)}
-              onEditPeserta={(p) => {
-                setEditPeserta(p);
-                setActiveTab('tambah');
-              }}
-            />
-          )}
+              {activeTab === 'pic' && (
+                <PicKoordinatorView
+                  picList={picList}
+                  programList={programList}
+                  kategoriList={kategoriList}
+                  pesertaList={pesertaList}
+                  userRole={currentUser.role}
+                  onSavePic={handleSavePic}
+                  onDeletePic={handleDeletePic}
+                  onNavigateToPeserta={(picName) => {
+                    setActiveTab('peserta');
+                  }}
+                />
+              )}
 
-          {activeTab === 'import' && (
-            <ImportView
-              kategoriList={kategoriList}
-              programList={programList}
-              onImportDone={handleImportDone}
-            />
-          )}
+              {activeTab === 'eduventure' && (
+                <EduventureView
+                  eduventureList={eduventureList}
+                  kategoriList={kategoriList}
+                  programList={programList}
+                  userRole={currentUser.role}
+                  onSaveEduventure={handleSaveEduventure}
+                  onDeleteEduventure={handleDeleteEduventure}
+                  onNavigateToKategori={() => setActiveTab('kategori')}
+                />
+              )}
 
-          {activeTab === 'export' && (
-            <ExportView
-              pesertaList={pesertaList}
-              kategoriList={kategoriList}
-              programList={programList}
-            />
-          )}
+              {activeTab === 'search' && (
+                <AdvancedSearchView
+                  kategoriList={kategoriList}
+                  programList={programList}
+                  userRole={currentUser.role}
+                  onViewDetail={(p) => setDetailPeserta(p)}
+                  onEditPeserta={(p) => {
+                    setEditPeserta(p);
+                    setActiveTab('tambah');
+                  }}
+                />
+              )}
 
-          {activeTab === 'statistik' && (
-            <StatistikView
-              pesertaList={pesertaList}
-              kategoriList={kategoriList}
-              programList={programList}
-            />
-          )}
+              {activeTab === 'import' && (
+                <ImportView
+                  kategoriList={kategoriList}
+                  programList={programList}
+                  onImportDone={handleImportDone}
+                />
+              )}
 
-          {activeTab === 'user' && (
-            <UserManagementView
-              users={users}
-              currentUser={currentUser}
-              onSaveUser={handleSaveUser}
-              onDeleteUser={handleDeleteUser}
-            />
-          )}
+              {activeTab === 'export' && (
+                <ExportView
+                  pesertaList={pesertaList}
+                  kategoriList={kategoriList}
+                  programList={programList}
+                />
+              )}
 
-          {activeTab === 'log' && (
-            <LogAktivitasView logs={logs} />
-          )}
+              {activeTab === 'statistik' && (
+                <StatistikView
+                  pesertaList={pesertaList}
+                  kategoriList={kategoriList}
+                  programList={programList}
+                />
+              )}
 
-          {activeTab === 'setting' && (
-            <PengaturanView
-              settings={settings}
-              onSaveSettings={handleSaveSettings}
-              onResetDatabase={handleResetDatabase}
-              onOpenGasModal={() => setIsGasModalOpen(true)}
-            />
+              {activeTab === 'user' && (
+                <UserManagementView
+                  users={users}
+                  currentUser={currentUser}
+                  groups={groups}
+                  initialSubTab="matrix"
+                  onSaveUser={handleSaveUser}
+                  onDeleteUser={handleDeleteUser}
+                  onSaveGroup={handleSaveGroup}
+                  onDeleteGroup={handleDeleteGroup}
+                  onSaveGroupPrivileges={handleSaveGroupPrivileges}
+                  onResetPrivileges={handleResetPrivileges}
+                  onRefreshData={refreshAllData}
+                />
+              )}
+
+              {activeTab === 'menu_manage' && (
+                <UserManagementView
+                  users={users}
+                  currentUser={currentUser}
+                  groups={groups}
+                  initialSubTab="menus"
+                  onSaveUser={handleSaveUser}
+                  onDeleteUser={handleDeleteUser}
+                  onSaveGroup={handleSaveGroup}
+                  onDeleteGroup={handleDeleteGroup}
+                  onSaveGroupPrivileges={handleSaveGroupPrivileges}
+                  onResetPrivileges={handleResetPrivileges}
+                  onRefreshData={refreshAllData}
+                />
+              )}
+
+              {activeTab === 'log' && (
+                <LogAktivitasView logs={logs} />
+              )}
+
+              {activeTab === 'setting' && (
+                <PengaturanView
+                  settings={settings}
+                  onSaveSettings={handleSaveSettings}
+                  onResetDatabase={handleResetDatabase}
+                  onOpenGasModal={() => setIsGasModalOpen(true)}
+                />
+              )}
+            </>
           )}
         </main>
       </div>
@@ -414,6 +611,7 @@ export default function App() {
         isOpen={Boolean(detailPeserta)}
         onClose={() => setDetailPeserta(null)}
         userRole={currentUser.role}
+        picList={picList}
         onEdit={(p) => {
           setEditPeserta(p);
           setActiveTab('tambah');

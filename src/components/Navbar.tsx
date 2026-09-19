@@ -2,12 +2,14 @@ import React from 'react';
 import { 
   Menu, Shield, Database, RefreshCw, FileCode, CheckCircle2, UserCheck, LogOut
 } from 'lucide-react';
-import { UserItem, UserRole } from '../types';
+import { UserItem, UserRole, GroupAkun } from '../types';
 import { UnpadLogo } from './UnpadLogo';
 
 interface NavbarProps {
   currentUser: UserItem;
+  groups?: GroupAkun[];
   onRoleChange: (role: UserRole) => void;
+  onGroupChange?: (groupId: string) => void;
   onOpenGasModal: () => void;
   onToggleSidebar: () => void;
   isSidebarOpen: boolean;
@@ -16,7 +18,9 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
+  groups,
   onRoleChange,
+  onGroupChange,
   onOpenGasModal,
   onToggleSidebar,
   onLogout,
@@ -48,8 +52,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Right: Database Engine Status, Role Switcher, Script Button, User Profile */}
-        <div className="flex items-center gap-2 sm:gap-4">
+        {/* Right: Database Engine Status, Role/Group Switcher, Script Button, User Profile */}
+        <div className="flex items-center gap-2 sm:gap-3">
           {/* Live Google Sheets Connection Badge */}
           <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">
             <Database className="w-3.5 h-3.5 text-emerald-600" />
@@ -68,20 +72,36 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="hidden sm:inline">Source Code GAS</span>
           </button>
 
-          {/* Role Switcher (Simulasi Hak Akses) */}
+          {/* Group / Role Switcher (Simulasi Hak Akses Berelasi Group Akun) */}
           <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
             <Shield className="w-3.5 h-3.5 text-slate-500 ml-1" />
-            <span className="text-slate-500 hidden lg:inline">Role:</span>
-            <select
-              id="select-active-role"
-              value={currentUser.role}
-              onChange={(e) => onRoleChange(e.target.value as UserRole)}
-              className="bg-white border border-slate-300 text-slate-800 text-xs font-semibold rounded px-2 py-0.5 focus:ring-1 focus:ring-[#002B66] outline-none cursor-pointer"
-            >
-              <option value="ADMIN">ADMIN</option>
-              <option value="OPERATOR">OPERATOR</option>
-              <option value="VIEWER">VIEWER</option>
-            </select>
+            <span className="text-slate-500 hidden lg:inline">Group:</span>
+            {groups && groups.length > 0 && onGroupChange ? (
+              <select
+                id="select-active-group"
+                value={currentUser.groupId || currentUser.role}
+                onChange={(e) => onGroupChange(e.target.value)}
+                className="bg-white border border-slate-300 text-slate-800 text-xs font-bold rounded px-2 py-0.5 focus:ring-1 focus:ring-[#002B66] outline-none cursor-pointer max-w-[150px] sm:max-w-[200px] truncate"
+                title="Ganti simulasi Group Akun & Hak Akses"
+              >
+                {groups.map(g => (
+                  <option key={g.id} value={g.id}>
+                    {g.namaGroup}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <select
+                id="select-active-role"
+                value={currentUser.role}
+                onChange={(e) => onRoleChange(e.target.value as UserRole)}
+                className="bg-white border border-slate-300 text-slate-800 text-xs font-semibold rounded px-2 py-0.5 focus:ring-1 focus:ring-[#002B66] outline-none cursor-pointer"
+              >
+                <option value="ADMIN">ADMIN</option>
+                <option value="OPERATOR">OPERATOR</option>
+                <option value="VIEWER">VIEWER</option>
+              </select>
+            )}
           </div>
 
           {/* User Profile Avatar & Logout */}
@@ -91,11 +111,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {currentUser.nama ? currentUser.nama.charAt(0).toUpperCase() : 'U'}
               </div>
               <div className="hidden xl:block text-left">
-                <div className="text-xs font-bold text-slate-800 leading-tight">
+                <div className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[120px]">
                   {currentUser.nama || 'Dr. Nendar H.'}
                 </div>
-                <div className="text-[10px] text-slate-500 font-medium">
-                  {currentUser.email}
+                <div className="text-[10px] text-slate-500 font-medium truncate max-w-[120px]">
+                  {currentUser.namaGroup || currentUser.role}
                 </div>
               </div>
             </div>

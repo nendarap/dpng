@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { 
   LayoutDashboard, Users, UserPlus, Layers, GraduationCap, 
   Search, FileSpreadsheet, Download, BarChart3, ShieldCheck, 
-  History, Settings, Code, X, LogOut, Map
+  History, Settings, Code, X, LogOut, Map, UserCheck, Compass,
+  SlidersHorizontal, Shield, ChevronRight
 } from 'lucide-react';
-import { UserRole } from '../types';
+import { UserRole, GroupAkun, UserItem, AppMenuId, AppMenuItemDef } from '../types';
+import { hasMenuAccess } from '../data/privilegeData';
+import { getAppMenus } from '../services/storageService';
 import { UnpadLogo } from './UnpadLogo';
 
 export type ActiveTab = 
@@ -14,11 +17,14 @@ export type ActiveTab =
   | 'tambah' 
   | 'kategori' 
   | 'program' 
+  | 'pic'
+  | 'eduventure'
   | 'search' 
   | 'import' 
   | 'export' 
   | 'statistik' 
   | 'user' 
+  | 'menu_manage'
   | 'log' 
   | 'setting' 
   | 'gas_code';
@@ -27,42 +33,103 @@ interface SidebarProps {
   activeTab: ActiveTab;
   onSelectTab: (tab: ActiveTab) => void;
   userRole: UserRole;
+  currentUser?: UserItem;
+  groups?: GroupAkun[];
   isOpen: boolean;
   onCloseMobile: () => void;
   onLogout?: () => void;
 }
 
+const ICON_MAP: Record<string, React.ElementType> = {
+  dashboard: LayoutDashboard,
+  map_dashboard: Map,
+  peserta: Users,
+  tambah: UserPlus,
+  kategori: Layers,
+  program: GraduationCap,
+  pic: UserCheck,
+  eduventure: Compass,
+  search: Search,
+  import: FileSpreadsheet,
+  export: Download,
+  statistik: BarChart3,
+  user: ShieldCheck,
+  menu_manage: SlidersHorizontal,
+  log: History,
+  setting: Settings,
+  gas_code: Code,
+};
+
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   onSelectTab,
   userRole,
+  currentUser,
+  groups,
   isOpen,
   onCloseMobile,
   onLogout,
 }) => {
-  const navItems = [
-    { id: 'dashboard', label: 'Dashboard Utama', icon: LayoutDashboard, role: 'VIEWER' },
-    { id: 'map_dashboard', label: 'Peta Sebaran (Map)', icon: Map, role: 'VIEWER' },
-    { id: 'peserta', label: 'Data Peserta', icon: Users, role: 'VIEWER' },
-    { id: 'tambah', label: 'Tambah Peserta', icon: UserPlus, role: 'OPERATOR' },
-    { id: 'kategori', label: 'Kategori Program', icon: Layers, role: 'OPERATOR' },
-    { id: 'program', label: 'Program', icon: GraduationCap, role: 'OPERATOR' },
-    { id: 'search', label: 'Advanced Search', icon: Search, role: 'VIEWER' },
-    { id: 'import', label: 'Import Data', icon: FileSpreadsheet, role: 'ADMIN' },
-    { id: 'export', label: 'Export Data', icon: Download, role: 'OPERATOR' },
-    { id: 'statistik', label: 'Statistik', icon: BarChart3, role: 'VIEWER' },
-    { id: 'user', label: 'User Management', icon: ShieldCheck, role: 'ADMIN' },
-    { id: 'log', label: 'Log Aktivitas', icon: History, role: 'OPERATOR' },
-    { id: 'setting', label: 'Pengaturan', icon: Settings, role: 'ADMIN' },
-    { id: 'gas_code', label: 'Script GAS & Setup', icon: Code, role: 'VIEWER' },
-  ];
+  // Ambil daftar menu terkonfigurasi dari storage terurut
+  const allMenus = useMemo(() => {
+    return getAppMenus().sort((a, b) => (a.urutan || 99) - (b.urutan || 99));
+  }, [activeTab, groups]);
 
-  const hasAccess = (itemRole: string) => {
+  const checkItemAccess = (itemId: string): boolean => {
+    const menuItem = allMenus.find(m => m.id === itemId);
+    // Menu non-aktif disembunyikan secara global untuk non-admin
+    if (menuItem && menuItem.aktif === false) {
+      if (currentUser?.role !== 'ADMIN' && userRole !== 'ADMIN') {
+        return false;
+      }
+    }
+
+    if (currentUser && groups && groups.length > 0) {
+      return hasMenuAccess(currentUser, groups, itemId as AppMenuId, allMenus);
+    }
     if (userRole === 'ADMIN') return true;
-    if (userRole === 'OPERATOR') return itemRole === 'OPERATOR' || itemRole === 'VIEWER';
-    if (userRole === 'VIEWER') return itemRole === 'VIEWER';
+    if (userRole === 'OPERATOR') {
+      return ['dashboard', 'map_dashboard', 'kategori', 'program', 'pic', 'peserta', 'tambah', 'eduventure', 'search', 'statistik', 'export', 'log', 'gas_code'].includes(itemId);
+    }
+    if (userRole === 'VIEWER') {
+      return ['dashboard', 'map_dashboard', 'kategori', 'program', 'pic', 'peserta', 'eduventure', 'search', 'statistik', 'export', 'gas_code'].includes(itemId);
+    }
     return false;
   };
+
+  // Filter menu yang diizinkan untuk pengguna & group saat ini
+  const accessibleMenus = useMemo(() => {
+    return allMenus.filter(item => {
+      // Jika ADMIN, tampilkan semua menu yang aktif
+      if (currentUser?.role === 'ADMIN' || userRole === 'ADMIN') {
+        return item.aktif !== false;
+      }
+      // Untuk role/group lain, hanya tampilkan menu yang memiliki izin akses
+      return checkItemAccess(item.id);
+    });
+  }, [allMenus, currentUser, userRole, groups]);
+
+  // Kelompokkan menu berdasarkan Kategori Modul
+  const groupedMenus = useMemo(() => {
+    const categoryOrder = [
+      'Dashboard & Peta',
+      'Operasional & Peserta',
+      'Master Data Program',
+      'Laporan & Analitik',
+      'Administrasi Sistem'
+    ];
+
+    const groupsMap: Record<string, AppMenuItemDef[]> = {};
+    categoryOrder.forEach(cat => { groupsMap[cat] = []; });
+
+    accessibleMenus.forEach(item => {
+      const cat = item.kategoriModul || 'Operasional & Peserta';
+      if (!groupsMap[cat]) groupsMap[cat] = [];
+      groupsMap[cat].push(item);
+    });
+
+    return Object.entries(groupsMap).filter(([_, items]) => items.length > 0);
+  }, [accessibleMenus]);
 
   return (
     <>
@@ -101,58 +168,89 @@ export const Sidebar: React.FC<SidebarProps> = ({
           
           <button
             onClick={onCloseMobile}
-            className="lg:hidden text-white/70 hover:text-white p-1 rounded"
+            className="lg:hidden text-white/70 hover:text-white p-1 rounded cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Menu Navigation Items */}
-        <div className="flex-1 overflow-y-auto py-3 px-2.5 space-y-1 custom-scrollbar">
-          <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-            Menu Utama
+        {/* User Role & Group Info Header */}
+        <div className="px-3.5 py-2.5 bg-[#002252]/80 border-b border-white/5 flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-6 h-6 rounded-lg bg-amber-400/20 text-amber-300 flex items-center justify-center shrink-0 border border-amber-400/30">
+              <Shield className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] text-slate-400 block leading-tight">Role / Group:</span>
+              <span className="font-bold text-[11px] text-amber-300 truncate block">
+                {currentUser?.namaGroup || currentUser?.role || userRole}
+              </span>
+            </div>
           </div>
-
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const allowed = hasAccess(item.role);
-            const isActive = activeTab === item.id;
-
-            return (
-              <button
-                key={item.id}
-                id={`sidebar-link-${item.id}`}
-                onClick={() => {
-                  if (allowed) {
-                    onSelectTab(item.id as ActiveTab);
-                    if (window.innerWidth < 1024) onCloseMobile();
-                  }
-                }}
-                disabled={!allowed}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150 ${
-                  !allowed 
-                    ? 'opacity-40 cursor-not-allowed text-slate-400' 
-                    : isActive
-                      ? 'bg-[#FDB913] text-[#002B66] shadow-xs font-bold'
-                      : 'text-slate-200 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-[#002B66]' : 'text-slate-300'}`} />
-                  <span>{item.label}</span>
-                </div>
-                {!allowed && (
-                  <span className="text-[9px] bg-white/10 px-1.5 py-0.5 rounded text-slate-300">
-                    {item.role}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+          <span className="text-[10px] font-mono bg-white/10 text-white/90 px-1.5 py-0.5 rounded shrink-0">
+            {accessibleMenus.length} Menu
+          </span>
         </div>
 
-        {/* Footer info & Logout */}
+        {/* Menu Navigation Items Grouped by Role & Category */}
+        <div className="flex-1 overflow-y-auto py-2 px-2.5 space-y-4 custom-scrollbar">
+          {groupedMenus.map(([category, items]) => (
+            <div key={category} className="space-y-1">
+              <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400/80 flex items-center justify-between">
+                <span>{category}</span>
+                <span className="text-[9px] font-mono text-slate-500 font-normal">
+                  {items.length}
+                </span>
+              </div>
+
+              {items.map((item) => {
+                const Icon = ICON_MAP[item.id] || LayoutDashboard;
+                const isActive = activeTab === item.id;
+
+                return (
+                  <button
+                    key={item.id}
+                    id={`sidebar-link-${item.id}`}
+                    onClick={() => {
+                      onSelectTab(item.id as ActiveTab);
+                      if (window.innerWidth < 1024) onCloseMobile();
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                      isActive
+                        ? 'bg-[#FDB913] text-[#002B66] shadow-xs font-bold'
+                        : 'text-slate-200 hover:bg-white/10 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#002B66]' : 'text-slate-300'}`} />
+                      <span className="truncate">{item.label}</span>
+                    </div>
+                    {isActive && (
+                      <ChevronRight className="w-3.5 h-3.5 text-[#002B66] shrink-0" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+
+        {/* Footer info, User Group status & Logout */}
         <div className="p-3 border-t border-white/10 bg-[#002252] text-[11px] text-slate-300 space-y-2">
+          {currentUser && (
+            <div className="bg-white/5 border border-white/10 rounded-lg p-2 flex items-center justify-between">
+              <div className="overflow-hidden">
+                <span className="text-[10px] text-slate-400 block truncate">Group Akun Aktif:</span>
+                <span className="font-bold text-amber-300 text-xs truncate block">
+                  {currentUser.namaGroup || currentUser.role}
+                </span>
+              </div>
+              <span className="text-[9px] bg-white/10 px-1.5 py-0.5 rounded text-white/80 shrink-0 font-mono">
+                {currentUser.groupId || currentUser.role}
+              </span>
+            </div>
+          )}
+
           {onLogout && (
             <button
               id="sidebar-btn-logout"

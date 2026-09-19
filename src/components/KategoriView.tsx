@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Plus, Edit2, Trash2, Layers, CheckCircle2, XCircle, 
-  AlertTriangle, Users
+  AlertTriangle, Users, Compass, ChevronRight
 } from 'lucide-react';
 import { Kategori, Peserta, UserRole } from '../types';
 
@@ -11,6 +11,7 @@ interface KategoriViewProps {
   userRole: UserRole;
   onSaveKategori: (kat: Kategori) => void;
   onDeleteKategori: (idKategori: string) => void;
+  onNavigateToEduventure?: () => void;
 }
 
 export const KategoriView: React.FC<KategoriViewProps> = ({
@@ -19,6 +20,7 @@ export const KategoriView: React.FC<KategoriViewProps> = ({
   userRole,
   onSaveKategori,
   onDeleteKategori,
+  onNavigateToEduventure,
 }) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState<Kategori | null>(null);
@@ -139,6 +141,22 @@ export const KategoriView: React.FC<KategoriViewProps> = ({
                 <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
                   {k.deskripsi || 'Program pendidikan non gelar universitas padjadjaran.'}
                 </p>
+
+                {(k.idKategori === 'KAT-006' || k.namaKategori.toLowerCase().includes('eduventure')) && onNavigateToEduventure && (
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      onClick={onNavigateToEduventure}
+                      className="w-full py-1.5 px-2.5 bg-blue-50 hover:bg-blue-100 text-[#002B66] border border-blue-200 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Compass className="w-3.5 h-3.5 text-blue-700" />
+                        Buka Modul Eduventure
+                      </span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">

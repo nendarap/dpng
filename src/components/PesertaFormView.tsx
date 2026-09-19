@@ -2,9 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Save, ArrowLeft, AlertCircle, CheckCircle2, 
   User, Mail, Briefcase, GraduationCap, Award, DollarSign, FileCheck,
-  AlertTriangle
+  AlertTriangle, UserCheck, Plus, ExternalLink, Phone, MessageSquare, X
 } from 'lucide-react';
-import { Peserta, Kategori, Program, UserRole, StatusPeserta, StatusKelulusan } from '../types';
+import { Peserta, Kategori, Program, UserRole, StatusPeserta, StatusKelulusan, PicProgram } from '../types';
 import { generateNextIdPeserta, checkDuplicate } from '../services/storageService';
 import { DEFAULT_MASTER_DATA } from '../data/initialData';
 
@@ -12,6 +12,8 @@ interface PesertaFormViewProps {
   initialData?: Peserta | null;
   kategoriList: Kategori[];
   programList: Program[];
+  picList?: PicProgram[];
+  onQuickAddPic?: (newPic: PicProgram) => void;
   userRole: UserRole;
   onSave: (data: Partial<Peserta>, bypassDuplicate?: boolean) => { success: boolean; message: string; duplicateInfo?: any };
   onCancel: () => void;
@@ -22,6 +24,8 @@ export const PesertaFormView: React.FC<PesertaFormViewProps> = ({
   initialData,
   kategoriList,
   programList,
+  picList = [],
+  onQuickAddPic,
   userRole,
   onSave,
   onCancel,
@@ -45,6 +49,17 @@ export const PesertaFormView: React.FC<PesertaFormViewProps> = ({
   // ID Preview
   const [generatedId, setGeneratedId] = useState<string>('');
 
+  // Quick Add PIC Modal State
+  const [isQuickPicModalOpen, setIsQuickPicModalOpen] = useState(false);
+  const [manualPicMode, setManualPicMode] = useState(false);
+  const [newPicNama, setNewPicNama] = useState('');
+  const [newPicGelarDepan, setNewPicGelarDepan] = useState('');
+  const [newPicGelarBelakang, setNewPicGelarBelakang] = useState('');
+  const [newPicEmail, setNewPicEmail] = useState('');
+  const [newPicHp, setNewPicHp] = useState('');
+  const [newPicUnit, setNewPicUnit] = useState('Direktorat Pendidikan Non Gelar');
+  const [newPicJabatan, setNewPicJabatan] = useState('Koordinator Program');
+
   useEffect(() => {
     if (initialData?.id) {
       setGeneratedId(initialData.id);
@@ -61,6 +76,111 @@ export const PesertaFormView: React.FC<PesertaFormViewProps> = ({
     const filtered = programList.filter(p => p.idKategori === matchedKat.idKategori);
     return filtered.length > 0 ? filtered : programList;
   }, [formData.kategoriProgram, kategoriList, programList]);
+
+  // Selected PIC Object if linked by idPic or name
+  const currentSelectedPic = useMemo(() => {
+    if (formData.idPic) {
+      const found = picList.find(p => p.idPic === formData.idPic);
+      if (found) return found;
+    }
+    if (formData.pic) {
+      const found = picList.find(p => {
+        const fullDisplay = [p.gelarDepan, p.namaLengkap, p.gelarBelakang].filter(Boolean).join(' ');
+        return fullDisplay.toLowerCase() === formData.pic?.toLowerCase() ||
+               p.namaLengkap.toLowerCase() === formData.pic?.toLowerCase() ||
+               formData.pic?.toLowerCase().includes(p.namaLengkap.toLowerCase());
+      });
+      if (found) return found;
+    }
+    return null;
+  }, [formData.idPic, formData.pic, picList]);
+
+  // Handle Program Selection with Relational Auto-fill of PIC
+  const handleProgramSelection = (val: string) => {
+    const matchedProg = programList.find(p => p.namaProgram.toLowerCase() === val.toLowerCase());
+    let nextIdPic = formData.idPic;
+    let nextPicName = formData.pic;
+    let nextKategori = formData.kategoriProgram;
+    let nextIdKategori = formData.idKategori;
+
+    if (matchedProg) {
+      // Auto-fill category if empty or mismatch
+      if (matchedProg.idKategori) {
+        nextIdKategori = matchedProg.idKategori;
+        const katObj = kategoriList.find(k => k.idKategori === matchedProg.idKategori);
+        if (katObj) nextKategori = katObj.namaKategori;
+      }
+
+      // Check if this program has a registered PIC assigned in program or picList
+      if (matchedProg.idPic) {
+        nextIdPic = matchedProg.idPic;
+        const picObj = picList.find(p => p.idPic === matchedProg.idPic);
+        if (picObj) {
+          nextPicName = [picObj.gelarDepan, picObj.namaLengkap, picObj.gelarBelakang].filter(Boolean).join(' ');
+        } else if (matchedProg.namaPic) {
+          nextPicName = matchedProg.namaPic;
+        }
+      } else {
+        // Look up in picList by idProgramUtama or namaProgramUtama
+        const picForProg = picList.find(p => 
+          (p.idProgramUtama && p.idProgramUtama === matchedProg.idProgram) ||
+          (p.namaProgramUtama && p.namaProgramUtama.toLowerCase() === matchedProg.namaProgram.toLowerCase())
+        );
+        if (picForProg) {
+          nextIdPic = picForProg.idPic;
+          nextPicName = [picForProg.gelarDepan, picForProg.namaLengkap, picForProg.gelarBelakang].filter(Boolean).join(' ');
+        }
+      }
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      namaProgram: val,
+      idProgram: matchedProg ? matchedProg.idProgram : prev.idProgram,
+      kategoriProgram: nextKategori,
+      idKategori: nextIdKategori,
+      idPic: nextIdPic,
+      pic: nextPicName
+    }));
+  };
+
+  // Handle Quick Save PIC from within the form
+  const handleQuickAddPicSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPicNama.trim()) return;
+
+    const fullWithTitles = [newPicGelarDepan.trim(), newPicNama.trim(), newPicGelarBelakang.trim()].filter(Boolean).join(' ');
+    const newPic: PicProgram = {
+      idPic: '',
+      namaLengkap: newPicNama.trim(),
+      gelarDepan: newPicGelarDepan.trim() || undefined,
+      gelarBelakang: newPicGelarBelakang.trim() || undefined,
+      email: newPicEmail.trim(),
+      nomorHp: newPicHp.trim(),
+      unitFakultas: newPicUnit,
+      jabatan: newPicJabatan,
+      namaProgramUtama: formData.namaProgram || undefined,
+      idProgramUtama: formData.idProgram || undefined,
+      statusAktif: 'Ya'
+    };
+
+    if (onQuickAddPic) {
+      onQuickAddPic(newPic);
+    }
+
+    // Associate directly with current form
+    setFormData(prev => ({
+      ...prev,
+      pic: fullWithTitles
+    }));
+
+    setIsQuickPicModalOpen(false);
+    setNewPicNama('');
+    setNewPicGelarDepan('');
+    setNewPicGelarBelakang('');
+    setNewPicEmail('');
+    setNewPicHp('');
+  };
 
   // Duplicate Warning Modal State
   const [dupModalInfo, setDupModalInfo] = useState<{
@@ -451,7 +571,7 @@ export const PesertaFormView: React.FC<PesertaFormViewProps> = ({
                 required
                 placeholder="Pilih atau ketik program..."
                 value={formData.namaProgram || ''}
-                onChange={(e) => setFormData({ ...formData, namaProgram: e.target.value })}
+                onChange={(e) => handleProgramSelection(e.target.value)}
                 className={`w-full p-2.5 rounded-lg border ${errors.namaProgram ? 'border-rose-500' : 'border-slate-200'} bg-slate-50 focus:bg-white focus:ring-1 focus:ring-[#002B66] outline-none font-medium`}
               />
               <datalist id="program-datalist">
@@ -459,6 +579,9 @@ export const PesertaFormView: React.FC<PesertaFormViewProps> = ({
                   <option key={p.idProgram} value={p.namaProgram} />
                 ))}
               </datalist>
+              <span className="text-[10px] text-slate-400 mt-1 block">
+                Memilih program terdaftar akan otomatis menghubungkan koordinator/PIC yang ditugaskan.
+              </span>
             </div>
 
             {/* Angkatan / Batch */}
@@ -626,22 +749,132 @@ export const PesertaFormView: React.FC<PesertaFormViewProps> = ({
               </select>
             </div>
 
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">PIC / Koordinator Program</label>
-              <input
-                type="text"
-                placeholder="Nama penanggung jawab"
-                value={formData.pic || ''}
-                onChange={(e) => setFormData({ ...formData, pic: e.target.value })}
-                className="w-full p-2.5 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:ring-1 focus:ring-[#002B66] outline-none font-medium"
-              />
+            {/* PIC / Koordinator Program Relasional */}
+            <div className="md:col-span-2 space-y-2 p-3 bg-slate-50/80 rounded-xl border border-slate-200">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <label className="block font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                  <UserCheck className="w-4 h-4 text-[#002B66]" />
+                  <span>PIC / Koordinator Program</span>
+                </label>
+                <div className="flex items-center gap-2 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setManualPicMode(!manualPicMode)}
+                    className="text-[#002B66] hover:underline font-semibold cursor-pointer"
+                  >
+                    {manualPicMode ? 'Pilih dari Master PIC' : 'Ketik Manual'}
+                  </button>
+                  <span className="text-slate-300">•</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsQuickPicModalOpen(true)}
+                    className="inline-flex items-center gap-1 font-bold text-[#002B66] hover:text-[#083a7e] bg-blue-100/60 hover:bg-blue-100 px-2 py-0.5 rounded border border-blue-200 transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3 text-[#002B66]" />
+                    <span>Input PIC Baru</span>
+                  </button>
+                </div>
+              </div>
+
+              {manualPicMode ? (
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Ketik nama penanggung jawab / koordinator..."
+                    value={formData.pic || ''}
+                    onChange={(e) => setFormData({ ...formData, pic: e.target.value, idPic: undefined })}
+                    className="w-full p-2.5 rounded-lg border border-slate-200 bg-white focus:ring-1 focus:ring-[#002B66] outline-none font-medium text-xs"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    Mode ketik manual aktif. Klik "Pilih dari Master PIC" untuk memilih dari daftar koordinator resmi.
+                  </span>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <select
+                    id="select-pic-peserta"
+                    value={formData.idPic || (currentSelectedPic ? currentSelectedPic.idPic : '')}
+                    onChange={(e) => {
+                      const selectedId = e.target.value;
+                      if (!selectedId) {
+                        setFormData({ ...formData, idPic: undefined, pic: '' });
+                      } else {
+                        const found = picList.find(p => p.idPic === selectedId);
+                        if (found) {
+                          const full = [found.gelarDepan, found.namaLengkap, found.gelarBelakang].filter(Boolean).join(' ');
+                          setFormData({ ...formData, idPic: found.idPic, pic: full });
+                        }
+                      }
+                    }}
+                    className="w-full p-2.5 rounded-lg border border-slate-200 bg-white focus:ring-1 focus:ring-[#002B66] outline-none font-semibold text-slate-800 text-xs cursor-pointer"
+                  >
+                    <option value="">-- Pilih PIC / Koordinator Resmi Terdaftar ({picList.length}) --</option>
+                    {picList.map(pic => {
+                      const full = [pic.gelarDepan, pic.namaLengkap, pic.gelarBelakang].filter(Boolean).join(' ');
+                      const isAssignedToThisProg = formData.namaProgram && pic.namaProgramUtama && 
+                        pic.namaProgramUtama.toLowerCase() === formData.namaProgram.toLowerCase();
+                      return (
+                        <option key={pic.idPic} value={pic.idPic}>
+                          {isAssignedToThisProg ? '★ [Sesuai Program] ' : ''}{full} — {pic.jabatan || 'Koordinator'} ({pic.unitFakultas})
+                        </option>
+                      );
+                    })}
+                  </select>
+
+                  {/* Selected PIC Profile Card Preview */}
+                  {currentSelectedPic && (
+                    <div className="p-3 bg-white rounded-lg border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 animate-in fade-in">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-9 h-9 rounded-lg bg-[#002B66] text-white flex items-center justify-center font-bold text-xs shrink-0 border border-[#FDB913]/30">
+                          {currentSelectedPic.namaLengkap.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-bold text-xs text-slate-900 truncate">
+                            {[currentSelectedPic.gelarDepan, currentSelectedPic.namaLengkap, currentSelectedPic.gelarBelakang].filter(Boolean).join(' ')}
+                          </div>
+                          <div className="text-[10px] text-[#002B66] font-semibold flex items-center gap-1.5 truncate">
+                            <span>{currentSelectedPic.jabatan}</span>
+                            <span>•</span>
+                            <span className="text-slate-500 truncate">{currentSelectedPic.unitFakultas}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-center text-[11px]">
+                        {currentSelectedPic.email && (
+                          <a 
+                            href={`mailto:${currentSelectedPic.email}`} 
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-slate-50 hover:bg-slate-100 rounded text-slate-700 border border-slate-200"
+                            title={currentSelectedPic.email}
+                          >
+                            <Mail className="w-3 h-3 text-slate-400" />
+                            <span className="hidden md:inline">{currentSelectedPic.email}</span>
+                          </a>
+                        )}
+                        {currentSelectedPic.nomorHp && (
+                          <a 
+                            href={`https://wa.me/${currentSelectedPic.nomorHp.replace(/[^0-9]/g, '').replace(/^0/, '62')}`} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 hover:bg-emerald-100 rounded text-emerald-800 border border-emerald-200 font-medium"
+                            title="WhatsApp Koordinator"
+                          >
+                            <MessageSquare className="w-3 h-3 text-emerald-600" />
+                            <span>{currentSelectedPic.nomorHp}</span>
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
-            <div>
+            <div className="md:col-span-2">
               <label className="block font-bold text-slate-700 mb-1">Keterangan Tambahan</label>
               <input
                 type="text"
-                placeholder="Catatan khusus berkas/asesmen"
+                placeholder="Catatan khusus berkas/asesmen/kelengkapan pendaftaran..."
                 value={formData.keterangan || ''}
                 onChange={(e) => setFormData({ ...formData, keterangan: e.target.value })}
                 className="w-full p-2.5 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:ring-1 focus:ring-[#002B66] outline-none font-medium"
@@ -649,6 +882,118 @@ export const PesertaFormView: React.FC<PesertaFormViewProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Quick Add PIC Modal */}
+        {isQuickPicModalOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95">
+              <div className="p-4 bg-[#002B66] text-white flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-[#FDB913]" />
+                  <h3 className="font-bold text-sm">Input PIC / Koordinator Baru</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsQuickPicModalOpen(false)}
+                  className="text-white/70 hover:text-white p-1"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-3 text-xs">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Nama Lengkap (tanpa gelar) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Contoh: Hendra Wijaya"
+                    value={newPicNama}
+                    onChange={(e) => setNewPicNama(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#002B66] font-semibold"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Gelar Depan</label>
+                    <input
+                      type="text"
+                      placeholder="Dr. / Prof."
+                      value={newPicGelarDepan}
+                      onChange={(e) => setNewPicGelarDepan(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#002B66]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Gelar Belakang</label>
+                    <input
+                      type="text"
+                      placeholder="M.Pd. / Ph.D."
+                      value={newPicGelarBelakang}
+                      onChange={(e) => setNewPicGelarBelakang(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#002B66]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Email Resmi</label>
+                    <input
+                      type="email"
+                      placeholder="nama@unpad.ac.id"
+                      value={newPicEmail}
+                      onChange={(e) => setNewPicEmail(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#002B66]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Nomor WhatsApp / HP</label>
+                    <input
+                      type="text"
+                      placeholder="0812xxxxxxx"
+                      value={newPicHp}
+                      onChange={(e) => setNewPicHp(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-mono focus:outline-none focus:ring-1 focus:ring-[#002B66]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Unit Kerja / Fakultas</label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: Direktorat Pendidikan Non Gelar"
+                    value={newPicUnit}
+                    onChange={(e) => setNewPicUnit(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#002B66]"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsQuickPicModalOpen(false)}
+                    className="px-3 py-2 border border-slate-200 rounded-lg text-slate-600 font-semibold cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleQuickAddPicSubmit}
+                    disabled={!newPicNama.trim()}
+                    className="px-4 py-2 bg-[#002B66] hover:bg-[#083a7e] disabled:opacity-50 text-white font-bold rounded-lg shadow-xs cursor-pointer"
+                  >
+                    Simpan & Pilih PIC
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Submit & Cancel Buttons */}
         <div className="flex items-center justify-end gap-3 pt-2">

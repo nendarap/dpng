@@ -50,6 +50,7 @@ export interface Peserta {
   nilaiSkor: string;
   biayaProgram: number;
   sumberDana: string;
+  idPic?: string;
   pic: string;
   keterangan: string;
   createdAt: string;
@@ -58,6 +59,25 @@ export interface Peserta {
   updatedBy: string;
   statusData: 'Aktif' | 'Arsip';
   [key: string]: unknown;
+}
+
+export interface PicProgram {
+  idPic: string; // ID unik: PIC-001
+  namaLengkap: string;
+  gelarDepan?: string;
+  gelarBelakang?: string;
+  nip?: string;
+  email: string;
+  nomorHp: string;
+  jabatan: string; // e.g. 'Koordinator Program', 'Sekretaris Program', 'Penanggung Jawab Teknis'
+  unitFakultas: string; // e.g. 'Direktorat Pendidikan Non Gelar', 'Fakultas Kedokteran (FK)'
+  idProgramUtama?: string;
+  namaProgramUtama?: string;
+  idKategoriUtama?: string;
+  statusAktif: boolean | 'Ya' | 'Tidak';
+  keterangan?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Kategori {
@@ -76,8 +96,42 @@ export interface Program {
   namaProgram: string;
   deskripsi: string;
   statusAktif: boolean | 'Ya' | 'Tidak';
+  idPic?: string;
+  namaPic?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export type SkemaPaketEduventure = 'Eduventure Lite' | 'Eduventure Experience' | 'Eduventure Tematik';
+export type PilihanKunjunganEduventure = 'Universitas' | 'Fakultas';
+export type StatusBayarEduventure = 'Sudah' | 'Belum';
+export type RekeningEduventure = 'Eduventure 9882340560200004' | 'Luhung 9880619020200219';
+
+export interface EduventureBooking {
+  id: string; // e.g. "EDV-2026-0001"
+  idKategori: string; // Relasi ke Kategori Program (default "KAT-006")
+  namaKategori: string; // "Eduventure"
+  namaSekolah: string;
+  alamat: string;
+  kontakPerson: string; // Nama Guru / Narahubung
+  nomorKontak: string; // No WA / Telepon
+  emailKontak?: string;
+  jumlahPeserta: number; // Total peserta / siswa
+  jumlahGuru?: number; // Guru pendamping
+  tanggalPelaksanaan: string; // YYYY-MM-DD
+  skemaPaket: SkemaPaketEduventure;
+  pilihanKunjungan: PilihanKunjunganEduventure;
+  fakultasTujuan?: string[]; // Daftar fakultas yang dipilih jika pilihan adalah Fakultas
+  statusBayar: StatusBayarEduventure;
+  buktiTransferUrl?: string; // URL / Data URI base64 bukti transfer
+  buktiTransferNama?: string; // Nama file bukti transfer
+  nominalTransfer: number; // Nilai rupiah transfer
+  tanggalTransfer?: string; // YYYY-MM-DD
+  rekening: RekeningEduventure;
+  catatanTambahan?: string;
+  statusKunjungan?: 'Menunggu' | 'Dikonfirmasi' | 'Terlaksana' | 'Batal';
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface UserItem {
@@ -85,11 +139,73 @@ export interface UserItem {
   email: string;
   nama: string;
   role: UserRole;
+  groupId?: string;
+  namaGroup?: string;
+  customPrivileges?: Record<string, Partial<MenuPrivilege>>;
   password?: string;
   status?: 'Aktif' | 'Nonaktif';
   statusAktif?: 'Ya' | 'Tidak';
   createdAt?: string;
   lastLogin?: string;
+}
+
+export type AppMenuId = 
+  | 'dashboard' 
+  | 'map_dashboard' 
+  | 'peserta' 
+  | 'tambah' 
+  | 'kategori' 
+  | 'program' 
+  | 'pic'
+  | 'eduventure'
+  | 'search' 
+  | 'import' 
+  | 'export' 
+  | 'statistik' 
+  | 'user' 
+  | 'menu_manage'
+  | 'log' 
+  | 'setting' 
+  | 'gas_code'
+  | (string & {});
+
+export type MenuActionKey = 'canAccess' | 'canCreate' | 'canEdit' | 'canDelete' | 'canExport';
+
+export interface MenuPrivilege {
+  canAccess: boolean;
+  canCreate: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  canExport: boolean;
+}
+
+export interface AppMenuItemDef {
+  id: string;
+  label: string;
+  kategoriModul: 'Dashboard & Peta' | 'Master Data Program' | 'Operasional & Peserta' | 'Laporan & Analitik' | 'Administrasi Sistem' | string;
+  deskripsi: string;
+  urutan?: number;
+  aktif?: boolean;
+  iconName?: string;
+  badgeText?: string;
+  isCustom?: boolean;
+  supportedActions: {
+    canCreate: boolean;
+    canEdit: boolean;
+    canDelete: boolean;
+    canExport: boolean;
+  };
+}
+
+export interface GroupAkun {
+  id: string;
+  namaGroup: string;
+  deskripsi: string;
+  warnaBadge: string;
+  isSystem: boolean;
+  privileges: Record<string, MenuPrivilege>;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface LogAktivitas {
