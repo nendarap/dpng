@@ -155,7 +155,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
             </div>
 
             <a
-              href="/unpad-logo.svg"
+              href="./unpad-logo.svg"
               download="Unpad_logo-secondary.svg"
               className="shrink-0 px-3 py-1.5 bg-white hover:bg-slate-100 text-[#002B66] font-bold rounded-lg border border-slate-300 text-xs flex items-center gap-1.5 transition-colors"
             >
