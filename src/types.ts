@@ -134,6 +134,8 @@ export interface EduventureBooking {
   updatedAt: string;
 }
 
+export type AppThemeId = 'unpad-blue' | 'unpad-emerald' | 'unpad-dark' | 'unpad-maroon';
+
 export interface UserItem {
   userId: string;
   email: string;
@@ -147,6 +149,11 @@ export interface UserItem {
   statusAktif?: 'Ya' | 'Tidak';
   createdAt?: string;
   lastLogin?: string;
+  photoUrl?: string;
+  nip?: string;
+  telepon?: string;
+  unitKerja?: string;
+  theme?: AppThemeId;
 }
 
 export type AppMenuId = 
@@ -219,6 +226,37 @@ export interface LogAktivitas {
   ipUserAgent: string;
 }
 
+export type LoginBgType = 'preset' | 'custom' | 'gradient';
+
+export interface LoginPresetBackground {
+  id: string;
+  name: string;
+  location: string;
+  imageUrl: string;
+  thumbnailUrl: string;
+}
+
+export interface LoginSettings {
+  bgType: LoginBgType;
+  bgPresetId: string;
+  bgCustomUrl?: string;
+  bgGradient: 'navy-gold' | 'emerald-forest' | 'midnight-slate' | 'royal-maroon';
+  bgOverlayOpacity: number; // 10 to 90
+  bgBlurAmount: number; // 0 to 12
+  
+  judulLogin: string;
+  subjudulLogin: string;
+  cardHeroTag?: string;
+  showAnnouncement: boolean;
+  announcementText?: string;
+  announcementType?: 'info' | 'warning' | 'success';
+  
+  allowGoogleSso: boolean;
+  googleSsoButtonText: string;
+  footerContactText: string;
+  showFeatureHighlights: boolean;
+}
+
 export interface SettingApp {
   namaAplikasi: string;
   namaInstitusi: string;
@@ -234,6 +272,7 @@ export interface SettingApp {
   gasDeploymentUrl?: string;
   webAppUrl?: string;
   modeKoneksi?: 'local_sheet' | 'gas_live';
+  loginSettings?: LoginSettings;
 }
 
 export interface MasterData {

@@ -5,7 +5,7 @@ import {
   History, Settings, Code, X, LogOut, Map, UserCheck, Compass,
   SlidersHorizontal, Shield, ChevronRight
 } from 'lucide-react';
-import { UserRole, GroupAkun, UserItem, AppMenuId, AppMenuItemDef } from '../types';
+import { UserRole, GroupAkun, UserItem, AppMenuId, AppMenuItemDef, AppThemeId } from '../types';
 import { hasMenuAccess } from '../data/privilegeData';
 import { getAppMenus } from '../services/storageService';
 import { UnpadLogo } from './UnpadLogo';
@@ -38,6 +38,7 @@ interface SidebarProps {
   isOpen: boolean;
   onCloseMobile: () => void;
   onLogout?: () => void;
+  currentTheme?: AppThemeId;
 }
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -69,7 +70,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpen,
   onCloseMobile,
   onLogout,
+  currentTheme = 'unpad-blue',
 }) => {
+  // Ambil background class berdasarkan tema aktif
+  const themeBg = currentTheme === 'unpad-emerald'
+    ? 'bg-[#046A38]'
+    : currentTheme === 'unpad-dark'
+      ? 'bg-[#0F172A]'
+      : currentTheme === 'unpad-maroon'
+        ? 'bg-[#881337]'
+        : 'bg-[#002B66]';
+
+  const themeHeaderBg = currentTheme === 'unpad-emerald'
+    ? 'bg-[#023e20]/80'
+    : currentTheme === 'unpad-dark'
+      ? 'bg-[#020617]/80'
+      : currentTheme === 'unpad-maroon'
+        ? 'bg-[#4c0519]/80'
+        : 'bg-[#002252]/80';
+
   // Ambil daftar menu terkonfigurasi dari storage terurut
   const allMenus = useMemo(() => {
     return getAppMenus().sort((a, b) => (a.urutan || 99) - (b.urutan || 99));
@@ -143,7 +162,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Sidebar Container */}
       <aside 
-        className={`fixed lg:static top-0 left-0 bottom-0 w-64 bg-[#002B66] text-white flex flex-col z-50 transition-transform duration-200 ease-in-out ${
+        className={`fixed lg:static top-0 left-0 bottom-0 w-64 ${themeBg} text-white flex flex-col z-50 transition-all duration-200 ease-in-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
@@ -175,13 +194,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* User Role & Group Info Header */}
-        <div className="px-3.5 py-2.5 bg-[#002252]/80 border-b border-white/5 flex items-center justify-between">
+        <div className={`px-3.5 py-2.5 ${themeHeaderBg} border-b border-white/5 flex items-center justify-between`}>
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-6 h-6 rounded-lg bg-amber-400/20 text-amber-300 flex items-center justify-center shrink-0 border border-amber-400/30">
-              <Shield className="w-3.5 h-3.5" />
+            <div className="w-7 h-7 rounded-lg overflow-hidden bg-amber-400/20 text-amber-300 flex items-center justify-center shrink-0 border border-amber-400/30">
+              {currentUser?.photoUrl ? (
+                <img 
+                  src={currentUser.photoUrl} 
+                  alt="" 
+                  className="w-full h-full object-cover" 
+                  referrerPolicy="no-referrer" 
+                />
+              ) : (
+                <Shield className="w-3.5 h-3.5" />
+              )}
             </div>
             <div className="min-w-0">
-              <span className="text-[10px] text-slate-400 block leading-tight">Role / Group:</span>
+              <span className="text-[10px] text-slate-300 font-semibold block leading-tight truncate">
+                {currentUser?.nama || 'Pengguna Unpad'}
+              </span>
               <span className="font-bold text-[11px] text-amber-300 truncate block">
                 {currentUser?.namaGroup || currentUser?.role || userRole}
               </span>

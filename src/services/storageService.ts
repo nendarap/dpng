@@ -1,7 +1,7 @@
 import { 
   Peserta, Kategori, Program, UserItem, LogAktivitas, SettingApp, 
   AdvancedSearchFilter, UserRole, PicProgram, EduventureBooking,
-  GroupAkun, MenuPrivilege, AppMenuItemDef
+  GroupAkun, MenuPrivilege, AppMenuItemDef, AppThemeId, LoginSettings
 } from '../types';
 import { 
   DEFAULT_KATEGORI, DEFAULT_PROGRAM, DEFAULT_PESERTA, 
@@ -9,6 +9,7 @@ import {
   DEFAULT_EDUVENTURE
 } from '../data/initialData';
 import { DEFAULT_GROUPS, APP_MENU_DEFINITIONS, ROLE_PRESET_MAP } from '../data/privilegeData';
+import { DEFAULT_LOGIN_SETTINGS } from '../data/loginPresets';
 
 const STORAGE_KEYS = {
   PESERTA: 'simpendik_unpad_peserta',
@@ -231,6 +232,35 @@ export function deleteUser(userId: string): void {
   writeLog('Hapus User', 'USER', userId, `Menghapus user ID ${userId}`);
 }
 
+export function updateCurrentUserProfile(updatedFields: Partial<UserItem>): UserItem {
+  initLocalStorage();
+  const current = getCurrentUser();
+  const updated: UserItem = { ...current, ...updatedFields };
+  localStorage.setItem(STORAGE_KEYS.ACTIVE_USER, JSON.stringify(updated));
+
+  const users = getUsers();
+  const idx = users.findIndex(u => u.userId === updated.userId);
+  if (idx >= 0) {
+    users[idx] = { ...users[idx], ...updatedFields };
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+  }
+  writeLog('Update Profil', 'USER', updated.userId, `Pengguna ${updated.nama} memperbarui informasi profil / foto`);
+  return updated;
+}
+
+export function getAppTheme(): AppThemeId {
+  const stored = localStorage.getItem('simpendik_theme');
+  return (stored as AppThemeId) || 'unpad-blue';
+}
+
+export function setAppTheme(theme: AppThemeId): void {
+  localStorage.setItem('simpendik_theme', theme);
+  const current = getCurrentUser();
+  if (current) {
+    updateCurrentUserProfile({ theme });
+  }
+}
+
 // Group Akun & Privilege Management
 export function getGroups(): GroupAkun[] {
   initLocalStorage();
@@ -354,12 +384,37 @@ export function getLogs(): LogAktivitas[] {
 export function getSettings(): SettingApp {
   initLocalStorage();
   const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-  return raw ? JSON.parse(raw) : DEFAULT_SETTING;
+  if (!raw) return DEFAULT_SETTING;
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      ...DEFAULT_SETTING,
+      ...parsed,
+      loginSettings: {
+        ...DEFAULT_LOGIN_SETTINGS,
+        ...(parsed.loginSettings || {}),
+      },
+    };
+  } catch (e) {
+    return DEFAULT_SETTING;
+  }
 }
 
 export function saveSettings(settings: SettingApp): void {
   localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
   writeLog('Update Pengaturan', 'SETTING', 'APP_CONFIG', 'Konfigurasi aplikasi disimpan');
+}
+
+export function getLoginSettings(): LoginSettings {
+  const settings = getSettings();
+  return settings.loginSettings || DEFAULT_LOGIN_SETTINGS;
+}
+
+export function saveLoginSettings(loginSettings: LoginSettings): void {
+  const settings = getSettings();
+  settings.loginSettings = loginSettings;
+  saveSettings(settings);
+  writeLog('Update Pengaturan Login', 'SETTING', 'LOGIN_CONFIG', 'Super Admin memperbarui kustomisasi halaman login');
 }
 
 // Kategori CRUD

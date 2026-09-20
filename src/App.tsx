@@ -22,7 +22,7 @@ import { EduventureView } from './components/EduventureView';
 
 import { 
   Peserta, Kategori, Program, PicProgram, UserItem, LogAktivitas, SettingApp, UserRole,
-  EduventureBooking, GroupAkun, MenuPrivilege, AppMenuId
+  EduventureBooking, GroupAkun, MenuPrivilege, AppMenuId, AppThemeId
 } from './types';
 import { 
   getPeserta, createPeserta, updatePeserta, deletePeserta,
@@ -35,7 +35,8 @@ import {
   getAppMenus,
   getLogs, getSettings, saveSettings,
   getCurrentUser, setActiveUserRole, initializeDatabaseToDefaults, initLocalStorage,
-  isUserLoggedIn, logoutUser
+  isUserLoggedIn, logoutUser,
+  getAppTheme, setAppTheme, updateCurrentUserProfile
 } from './services/storageService';
 import { hasMenuAccess } from './data/privilegeData';
 import { CheckCircle2, AlertCircle, X, Lock, ShieldAlert } from 'lucide-react';
@@ -51,6 +52,7 @@ export default function App() {
 
   // Application Data States
   const [currentUser, setCurrentUser] = useState<UserItem>(getCurrentUser());
+  const [currentTheme, setCurrentTheme] = useState<AppThemeId>(() => getAppTheme());
   const [pesertaList, setPesertaList] = useState<Peserta[]>(getPeserta());
   const [kategoriList, setKategoriList] = useState<Kategori[]>(getKategori());
   const [programList, setProgramList] = useState<Program[]>(getProgram());
@@ -104,6 +106,27 @@ export default function App() {
     logoutUser();
     setIsLoggedIn(false);
     showToast('Anda telah keluar dari aplikasi.', 'success');
+  };
+
+  // Profile & Theme Handlers
+  const handleUpdateUser = (updatedUser: UserItem) => {
+    const saved = updateCurrentUserProfile(updatedUser);
+    setCurrentUser(saved);
+    setUsers(getUsers());
+    showToast('Informasi profil dan foto berhasil diperbarui.', 'success');
+  };
+
+  const handleThemeChange = (newTheme: AppThemeId) => {
+    setAppTheme(newTheme);
+    setCurrentTheme(newTheme);
+    const themeName = newTheme === 'unpad-blue' 
+      ? 'Unpad Classic Navy & Gold' 
+      : newTheme === 'unpad-emerald' 
+        ? 'Unpad Emerald Green' 
+        : newTheme === 'unpad-dark' 
+          ? 'Unpad Slate Dark' 
+          : 'Unpad Royal Maroon';
+    showToast(`Tema aplikasi beralih ke: ${themeName}`, 'success');
   };
 
   // Role Switcher Handler
@@ -313,7 +336,10 @@ export default function App() {
   if (!isLoggedIn) {
     return (
       <>
-        <LoginView onLoginSuccess={handleLoginSuccess} />
+        <LoginView 
+          onLoginSuccess={handleLoginSuccess} 
+          loginSettings={settings.loginSettings} 
+        />
         
         {/* Floating Toast Notification */}
         {toast && (
@@ -354,6 +380,9 @@ export default function App() {
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         isSidebarOpen={isSidebarOpen}
         onLogout={handleLogout}
+        currentTheme={currentTheme}
+        onUpdateUser={handleUpdateUser}
+        onThemeChange={handleThemeChange}
       />
 
       {/* Main Content Layout */}
@@ -377,6 +406,7 @@ export default function App() {
           isOpen={isSidebarOpen}
           onCloseMobile={() => setIsSidebarOpen(false)}
           onLogout={handleLogout}
+          currentTheme={currentTheme}
         />
 
         {/* Dynamic Center Stage */}
@@ -598,6 +628,7 @@ export default function App() {
                   onSaveSettings={handleSaveSettings}
                   onResetDatabase={handleResetDatabase}
                   onOpenGasModal={() => setIsGasModalOpen(true)}
+                  isAdmin={currentUser.role === 'ADMIN'}
                 />
               )}
             </>

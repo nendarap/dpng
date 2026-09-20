@@ -1,4 +1,5 @@
 import { Kategori, Program, Peserta, UserItem, SettingApp, MasterData, LogAktivitas, PicProgram, EduventureBooking } from '../types';
+import { DEFAULT_LOGIN_SETTINGS } from './loginPresets';
 
 export const DEFAULT_PIC: PicProgram[] = [
   {
@@ -224,7 +225,8 @@ export const DEFAULT_SETTING: SettingApp = {
   whitelistDomain: '@unpad.ac.id',
   spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
   webAppUrl: '',
-  modeKoneksi: 'local_sheet'
+  modeKoneksi: 'local_sheet',
+  loginSettings: DEFAULT_LOGIN_SETTINGS
 };
 
 export const DEFAULT_PESERTA: Peserta[] = [

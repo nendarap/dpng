@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
 import { 
   Settings, Save, Database, RefreshCw, CheckCircle2, 
-  AlertTriangle, Shield, Globe, FileCode
+  AlertTriangle, Shield, Globe, FileCode, Sliders, Image as ImageIcon
 } from 'lucide-react';
-import { SettingApp } from '../types';
+import { SettingApp, LoginSettings } from '../types';
 import { UnpadLogo } from './UnpadLogo';
+import { LoginSettingsTab } from './LoginSettingsTab';
+import { DEFAULT_LOGIN_SETTINGS } from '../data/loginPresets';
 
 interface PengaturanViewProps {
   settings: SettingApp;
   onSaveSettings: (settings: SettingApp) => void;
   onResetDatabase: () => void;
   onOpenGasModal: () => void;
+  isAdmin?: boolean;
 }
 
 export const PengaturanView: React.FC<PengaturanViewProps> = ({
@@ -18,14 +21,28 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
   onSaveSettings,
   onResetDatabase,
   onOpenGasModal,
+  isAdmin = true,
 }) => {
-  const [formData, setFormData] = useState<SettingApp>({ ...settings });
+  const [activeSubTab, setActiveSubTab] = useState<'system' | 'login'>('system');
+  const [formData, setFormData] = useState<SettingApp>({ 
+    ...settings,
+    loginSettings: settings.loginSettings || DEFAULT_LOGIN_SETTINGS
+  });
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [testResult, setTestResult] = useState<{ status: 'idle' | 'testing' | 'success' | 'failed'; message: string }>({
     status: 'idle',
     message: ''
   });
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  const handleSaveLoginSettings = (newLoginSettings: LoginSettings) => {
+    const updated = {
+      ...formData,
+      loginSettings: newLoginSettings,
+    };
+    setFormData(updated);
+    onSaveSettings(updated);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,13 +88,52 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6 text-xs">
-        {/* Identitas Aplikasi & Logo */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-4">
-          <h2 className="font-bold text-[#002B66] flex items-center gap-2 border-b border-slate-100 pb-2">
-            <Globe className="w-4 h-4 text-[#002B66]" />
-            <span>Identitas Aplikasi, Lembaga & Logo Resmi</span>
-          </h2>
+      {/* Sub Tab Navigation */}
+      <div className="flex items-center gap-2 border-b border-slate-200">
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('system')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+            activeSubTab === 'system'
+              ? 'border-[#002B66] text-[#002B66]'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Settings className="w-4 h-4" />
+          <span>Identitas & Database Sheets</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('login')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+            activeSubTab === 'login'
+              ? 'border-[#002B66] text-[#002B66]'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <ImageIcon className="w-4 h-4 text-[#FDB913]" />
+          <span>Pengaturan Halaman Login</span>
+          <span className="text-[10px] bg-amber-100 text-[#002B66] font-bold px-1.5 py-0.5 rounded-full">
+            Super Admin
+          </span>
+        </button>
+      </div>
+
+      {activeSubTab === 'login' ? (
+        <LoginSettingsTab
+          loginSettings={formData.loginSettings || DEFAULT_LOGIN_SETTINGS}
+          onSaveLoginSettings={handleSaveLoginSettings}
+          isAdmin={isAdmin}
+        />
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-6 text-xs">
+          {/* Identitas Aplikasi & Logo */}
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-4">
+            <h2 className="font-bold text-[#002B66] flex items-center gap-2 border-b border-slate-100 pb-2">
+              <Globe className="w-4 h-4 text-[#002B66]" />
+              <span>Identitas Aplikasi, Lembaga & Logo Resmi</span>
+            </h2>
 
           {/* Logo Resmi Preview Card */}
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -266,6 +322,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
           </button>
         </div>
       </form>
+      )}
 
       {/* Reset Confirmation Modal */}
       {showResetConfirm && (
