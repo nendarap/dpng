@@ -834,6 +834,122 @@ export function deleteEduventure(id: string): { success: boolean; message: strin
   return { success: true, message: `Kunjungan ${target.namaSekolah} berhasil dihapus.` };
 }
 
+export function bulkImportEduventure(
+  incomingItems: Array<Omit<EduventureBooking, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }>,
+  duplicateHandling: 'skip' | 'update' | 'force' = 'skip'
+): { success: boolean; count: number; updatedCount: number; skippedCount: number; message: string; data: EduventureBooking[] } {
+  const list = getEduventure();
+  const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  
+  let count = 0;
+  let updatedCount = 0;
+  let skippedCount = 0;
+
+  // Track highest ID sequence for auto-generation per year
+  const seqMap = new Map<number, number>();
+  const getNextBatchId = (yr: number) => {
+    if (!seqMap.has(yr)) {
+      const prefix = `EDV-${yr}-`;
+      let maxSeq = 0;
+      list.forEach(item => {
+        if (item.id && item.id.startsWith(prefix)) {
+          const numPart = parseInt(item.id.replace(prefix, ''), 10);
+          if (!isNaN(numPart) && numPart > maxSeq) {
+            maxSeq = numPart;
+          }
+        }
+      });
+      seqMap.set(yr, maxSeq);
+    }
+    const currentMax = seqMap.get(yr)! + 1;
+    seqMap.set(yr, currentMax);
+    return `EDV-${yr}-${String(currentMax).padStart(4, '0')}`;
+  };
+
+  for (const item of incomingItems) {
+    if (!item.namaSekolah || !item.tanggalPelaksanaan) {
+      skippedCount++;
+      continue;
+    }
+
+    // Match duplicate by ID or (namaSekolah + tanggalPelaksanaan)
+    const existingIndex = list.findIndex(existing => {
+      if (item.id && !item.id.startsWith('temp-') && existing.id === item.id) return true;
+      return (
+        existing.namaSekolah.trim().toLowerCase() === item.namaSekolah.trim().toLowerCase() &&
+        existing.tanggalPelaksanaan === item.tanggalPelaksanaan
+      );
+    });
+
+    if (existingIndex >= 0) {
+      if (duplicateHandling === 'skip') {
+        skippedCount++;
+        continue;
+      } else if (duplicateHandling === 'update') {
+        list[existingIndex] = {
+          ...list[existingIndex],
+          ...item,
+          id: list[existingIndex].id,
+          updatedAt: now
+        };
+        updatedCount++;
+        continue;
+      }
+      // If 'force', fall through to append
+    }
+
+    const yr = new Date(item.tanggalPelaksanaan || new Date()).getFullYear() || new Date().getFullYear();
+    const newId = item.id && !item.id.startsWith('temp-') ? item.id : getNextBatchId(yr);
+
+    const newBooking: EduventureBooking = {
+      id: newId,
+      idKategori: item.idKategori || 'KAT-006',
+      namaKategori: item.namaKategori || 'Eduventure',
+      namaSekolah: item.namaSekolah.trim(),
+      alamat: item.alamat || '',
+      kontakPerson: item.kontakPerson || 'Narahubung Sekolah',
+      nomorKontak: item.nomorKontak || '-',
+      emailKontak: item.emailKontak || '',
+      jumlahPeserta: Number(item.jumlahPeserta) || 0,
+      jumlahGuru: Number(item.jumlahGuru) || 0,
+      tanggalPelaksanaan: item.tanggalPelaksanaan,
+      skemaPaket: item.skemaPaket || 'Eduventure Experience',
+      pilihanKunjungan: item.pilihanKunjungan || 'Universitas',
+      fakultasTujuan: item.fakultasTujuan || [],
+      statusBayar: item.statusBayar || 'Belum',
+      buktiTransferUrl: item.buktiTransferUrl,
+      buktiTransferNama: item.buktiTransferNama,
+      nominalTransfer: Number(item.nominalTransfer) || 0,
+      tanggalTransfer: item.tanggalTransfer,
+      rekening: item.rekening || 'Eduventure 9882340560200004',
+      catatanTambahan: item.catatanTambahan || '',
+      statusKunjungan: item.statusKunjungan || 'Menunggu',
+      createdAt: now,
+      updatedAt: now
+    };
+
+    list.unshift(newBooking);
+    count++;
+  }
+
+  localStorage.setItem(STORAGE_KEYS.EDUVENTURE, JSON.stringify(list));
+  writeLog(
+    'Import Eduventure',
+    'EDUVENTURE',
+    `${count + updatedCount} Data`,
+    `Import data kunjungan Eduventure via Excel/CSV: ${count} ditambah, ${updatedCount} diperbarui, ${skippedCount} dilewati.`
+  );
+
+  return {
+    success: true,
+    count,
+    updatedCount,
+    skippedCount,
+    message: `Berhasil mengimport data Eduventure! ${count} data baru ditambahkan, ${updatedCount} diperbarui${skippedCount > 0 ? `, ${skippedCount} data dilewati` : ''}.`,
+    data: list
+  };
+}
+
 // Reset / Initialize Database
 export function initializeDatabaseToDefaults(): void {
   localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(DEFAULT_PESERTA));

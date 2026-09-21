@@ -29,7 +29,7 @@ import {
   getKategori, saveKategori, deleteKategori,
   getProgram, saveProgram, deleteProgram,
   getPic, savePic, deletePic,
-  getEduventure, saveEduventure, deleteEduventure,
+  getEduventure, saveEduventure, deleteEduventure, bulkImportEduventure,
   getUsers, saveUser, deleteUser,
   getGroups, saveGroup, deleteGroup, saveAllGroupPrivileges, resetPrivilegesToDefaults,
   getAppMenus,
@@ -296,6 +296,20 @@ export default function App() {
     }
   };
 
+  const handleBulkImportEduventure = (
+    items: Array<Omit<EduventureBooking, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }>,
+    mode: 'skip' | 'update' | 'force'
+  ) => {
+    const res = bulkImportEduventure(items, mode);
+    if (res.success) {
+      showToast(res.message);
+      refreshAllData();
+    } else {
+      showToast(res.message, 'error');
+    }
+    return res;
+  };
+
   // User Handlers
   const handleSaveUser = (u: UserItem) => {
     saveUser(u);
@@ -545,6 +559,7 @@ export default function App() {
                   userRole={currentUser.role}
                   onSaveEduventure={handleSaveEduventure}
                   onDeleteEduventure={handleDeleteEduventure}
+                  onBulkImportEduventure={handleBulkImportEduventure}
                   onNavigateToKategori={() => setActiveTab('kategori')}
                 />
               )}

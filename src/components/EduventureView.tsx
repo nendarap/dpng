@@ -4,7 +4,7 @@ import {
   CheckCircle2, Clock, School, MapPin, Phone, Mail, CreditCard, 
   FileText, ExternalLink, Edit2, Trash2, Eye, Download, Printer, 
   Layers, ChevronRight, Copy, Check, Upload, X, AlertTriangle, 
-  Building2, Landmark, Sparkles
+  Building2, Landmark, Sparkles, FileSpreadsheet
 } from 'lucide-react';
 import { 
   EduventureBooking, Kategori, Program, UserRole, 
@@ -12,6 +12,8 @@ import {
   StatusBayarEduventure, RekeningEduventure 
 } from '../types';
 import { DEFAULT_MASTER_DATA } from '../data/initialData';
+import { EduventureImportModal } from './EduventureImportModal';
+import { bulkImportEduventure } from '../services/storageService';
 
 interface EduventureViewProps {
   eduventureList: EduventureBooking[];
@@ -20,6 +22,10 @@ interface EduventureViewProps {
   userRole: UserRole;
   onSaveEduventure: (item: EduventureBooking) => void;
   onDeleteEduventure: (id: string) => void;
+  onBulkImportEduventure?: (
+    items: Array<Omit<EduventureBooking, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }>,
+    mode: 'skip' | 'update' | 'force'
+  ) => { success: boolean; message: string; count: number };
   onNavigateToKategori?: () => void;
 }
 
@@ -67,6 +73,7 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
   userRole,
   onSaveEduventure,
   onDeleteEduventure,
+  onBulkImportEduventure,
   onNavigateToKategori,
 }) => {
   // Filters & Controls
@@ -79,6 +86,7 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
 
   // Modals
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<EduventureBooking | null>(null);
   const [detailItem, setDetailItem] = useState<EduventureBooking | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<EduventureBooking | null>(null);
@@ -380,17 +388,30 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5 flex-shrink-0">
+          <div className="flex items-center gap-2.5 flex-shrink-0 flex-wrap">
             {userRole !== 'VIEWER' && (
-              <button
-                id="btn-tambah-eduventure"
-                type="button"
-                onClick={handleOpenAdd}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-900 font-semibold rounded-xl text-sm shadow-md hover:shadow-lg transition-all duration-150 transform hover:-translate-y-0.5"
-              >
-                <Plus className="w-4 h-4 text-slate-950 stroke-[2.5]" />
-                Daftar Kunjungan Baru
-              </button>
+              <>
+                <button
+                  id="btn-tambah-eduventure"
+                  type="button"
+                  onClick={handleOpenAdd}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-900 font-semibold rounded-xl text-sm shadow-md hover:shadow-lg transition-all duration-150 transform hover:-translate-y-0.5"
+                >
+                  <Plus className="w-4 h-4 text-slate-950 stroke-[2.5]" />
+                  Daftar Kunjungan Baru
+                </button>
+
+                <button
+                  id="btn-open-import-eduventure"
+                  type="button"
+                  onClick={() => setIsImportModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md hover:shadow-lg transition-all duration-150 transform hover:-translate-y-0.5 border border-emerald-400/40"
+                  title="Import Data Kunjungan dari Excel (.xlsx) atau CSV (.csv)"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-100" />
+                  <span>Import Data</span>
+                </button>
+              </>
             )}
             <button
               type="button"
@@ -1677,6 +1698,20 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal Import Data Eduventure */}
+      <EduventureImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        existingBookings={eduventureList}
+        kategoriList={kategoriList}
+        onImportSuccess={(items, mode) => {
+          if (onBulkImportEduventure) {
+            return onBulkImportEduventure(items, mode);
+          }
+          return bulkImportEduventure(items, mode);
+        }}
+      />
     </div>
   );
 };
