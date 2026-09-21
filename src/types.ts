@@ -119,6 +119,8 @@ export interface EduventureBooking {
   jumlahPeserta: number; // Total peserta / siswa
   jumlahGuru?: number; // Guru pendamping
   tanggalPelaksanaan: string; // YYYY-MM-DD
+  waktuMulai?: string; // e.g. "08:30" (Format HH:mm WIB)
+  waktuSelesai?: string; // e.g. "12:00" (Format HH:mm WIB)
   tempatPenyelenggaraan?: string; // e.g. "Bale Sawala", "Bale Rucita", "Bale Santika", "Auditorium Fakultas Farmasi", etc.
   skemaPaket: SkemaPaketEduventure;
   pilihanKunjungan: PilihanKunjunganEduventure;

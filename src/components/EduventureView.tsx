@@ -4,7 +4,7 @@ import {
   CheckCircle2, Clock, School, MapPin, Phone, Mail, CreditCard, 
   FileText, ExternalLink, Edit2, Trash2, Eye, Download, Printer, 
   Layers, ChevronRight, Copy, Check, Upload, X, AlertTriangle, 
-  Building2, Landmark, Sparkles, FileSpreadsheet
+  Building2, Landmark, Sparkles, FileSpreadsheet, LayoutGrid, Table, CalendarDays
 } from 'lucide-react';
 import { 
   EduventureBooking, Kategori, Program, UserRole, 
@@ -13,6 +13,7 @@ import {
 } from '../types';
 import { DEFAULT_MASTER_DATA } from '../data/initialData';
 import { EduventureImportModal } from './EduventureImportModal';
+import { EduventureCalendarView } from './EduventureCalendarView';
 import { 
   bulkImportEduventure, 
   getTempatEduventure, 
@@ -88,7 +89,7 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
   const [filterKunjungan, setFilterKunjungan] = useState<string>('ALL');
   const [filterRekening, setFilterRekening] = useState<string>('ALL');
   const [filterTempat, setFilterTempat] = useState<string>('ALL');
-  const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
+  const [viewMode, setViewMode] = useState<'card' | 'table' | 'calendar'>('card');
 
   // Dynamic Tempat Penyelenggaraan List
   const [tempatList, setTempatList] = useState<string[]>(() => getTempatEduventure());
@@ -115,6 +116,8 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
   const [formJumlahPeserta, setFormJumlahPeserta] = useState<number>(50);
   const [formJumlahGuru, setFormJumlahGuru] = useState<number>(4);
   const [formTanggalPelaksanaan, setFormTanggalPelaksanaan] = useState('');
+  const [formWaktuMulai, setFormWaktuMulai] = useState('08:30');
+  const [formWaktuSelesai, setFormWaktuSelesai] = useState('12:00');
   const [formTempatPenyelenggaraan, setFormTempatPenyelenggaraan] = useState<string>('Bale Sawala');
   const [isCustomTempat, setIsCustomTempat] = useState<boolean>(false);
   const [customTempatInput, setCustomTempatInput] = useState<string>('');
@@ -232,7 +235,7 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
   };
 
   // Open Form Handlers
-  const handleOpenAdd = () => {
+  const handleOpenAdd = (customDate?: string) => {
     const venues = getTempatEduventure();
     setTempatList(venues);
     setEditingItem(null);
@@ -244,10 +247,16 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
     setFormEmailKontak('');
     setFormJumlahPeserta(60);
     setFormJumlahGuru(4);
-    // default date 2 weeks from now
-    const d = new Date();
-    d.setDate(d.getDate() + 14);
-    setFormTanggalPelaksanaan(d.toISOString().substring(0, 10));
+    if (customDate) {
+      setFormTanggalPelaksanaan(customDate);
+    } else {
+      // default date 2 weeks from now
+      const d = new Date();
+      d.setDate(d.getDate() + 14);
+      setFormTanggalPelaksanaan(d.toISOString().substring(0, 10));
+    }
+    setFormWaktuMulai('08:30');
+    setFormWaktuSelesai('12:00');
     setFormTempatPenyelenggaraan(venues[0] || 'Bale Sawala');
     setIsCustomTempat(false);
     setCustomTempatInput('');
@@ -277,6 +286,8 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
     setFormJumlahPeserta(item.jumlahPeserta || 0);
     setFormJumlahGuru(item.jumlahGuru || 0);
     setFormTanggalPelaksanaan(item.tanggalPelaksanaan);
+    setFormWaktuMulai(item.waktuMulai || '08:30');
+    setFormWaktuSelesai(item.waktuSelesai || '12:00');
     const itemTempat = item.tempatPenyelenggaraan || 'Bale Sawala';
     if (!venues.includes(itemTempat)) {
       setTempatList([...venues, itemTempat]);
@@ -340,6 +351,8 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
       jumlahPeserta: Number(formJumlahPeserta) || 0,
       jumlahGuru: Number(formJumlahGuru) || 0,
       tanggalPelaksanaan: formTanggalPelaksanaan,
+      waktuMulai: formWaktuMulai || '08:30',
+      waktuSelesai: formWaktuSelesai || '12:00',
       tempatPenyelenggaraan: finalTempat,
       skemaPaket: formSkemaPaket,
       pilihanKunjungan: formPilihanKunjungan,
@@ -392,7 +405,7 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
   const handleExportCSV = () => {
     const headers = [
       'ID Kunjungan', 'Nama Sekolah', 'Alamat', 'Narahubung', 'No Kontak', 
-      'Jml Peserta', 'Jml Guru', 'Tgl Pelaksanaan', 'Tempat Penyelenggaraan', 'Paket', 'Pilihan Kunjungan', 
+      'Jml Peserta', 'Jml Guru', 'Tgl Pelaksanaan', 'Waktu Mulai', 'Waktu Selesai', 'Tempat Penyelenggaraan', 'Paket', 'Pilihan Kunjungan', 
       'Fakultas Tujuan', 'Status Bayar', 'Nominal Transfer', 'Tgl Transfer', 'Rekening'
     ];
     const rows = filteredList.map(item => [
@@ -404,6 +417,8 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
       item.jumlahPeserta,
       item.jumlahGuru || 0,
       item.tanggalPelaksanaan,
+      `"${item.waktuMulai || '08:30'}"`,
+      `"${item.waktuSelesai || '12:00'}"`,
       `"${(item.tempatPenyelenggaraan || 'Bale Sawala').replace(/"/g, '""')}"`,
       `"${item.skemaPaket}"`,
       `"${item.pilihanKunjungan}"`,
@@ -464,7 +479,7 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
                 <button
                   id="btn-tambah-eduventure"
                   type="button"
-                  onClick={handleOpenAdd}
+                  onClick={() => handleOpenAdd()}
                   className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-900 font-semibold rounded-xl text-sm shadow-md hover:shadow-lg transition-all duration-150 transform hover:-translate-y-0.5"
                 >
                   <Plus className="w-4 h-4 text-slate-950 stroke-[2.5]" />
@@ -496,6 +511,22 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
                 </button>
               </>
             )}
+
+            <button
+              id="btn-header-kalender-eduventure"
+              type="button"
+              onClick={() => setViewMode(viewMode === 'calendar' ? 'card' : 'calendar')}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md hover:shadow-lg transition-all duration-150 transform hover:-translate-y-0.5 border ${
+                viewMode === 'calendar'
+                  ? 'bg-amber-400 text-slate-900 border-amber-300 font-bold'
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-500/40'
+              }`}
+              title="Buka Kalender Agenda Eduventure"
+            >
+              <CalendarDays className="w-4 h-4" />
+              <span>Kalender Agenda</span>
+            </button>
+
             <button
               type="button"
               onClick={handleExportCSV}
@@ -625,30 +656,46 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-auto">
+          <div className="flex items-center gap-1.5 self-end sm:self-auto bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
               type="button"
               onClick={() => setViewMode('card')}
-              className={`p-2 rounded-lg text-xs font-medium border transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 viewMode === 'card' 
-                  ? 'bg-blue-50 text-[#002B66] border-blue-200' 
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  ? 'bg-white text-[#002B66] shadow-xs' 
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
               title="Tampilan Kartu"
             >
-              Kartu
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Kartu</span>
             </button>
             <button
               type="button"
               onClick={() => setViewMode('table')}
-              className={`p-2 rounded-lg text-xs font-medium border transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 viewMode === 'table' 
-                  ? 'bg-blue-50 text-[#002B66] border-blue-200' 
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  ? 'bg-white text-[#002B66] shadow-xs' 
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
               title="Tampilan Tabel"
             >
-              Tabel
+              <Table className="w-3.5 h-3.5" />
+              <span>Tabel</span>
+            </button>
+            <button
+              id="btn-tab-kalender-agenda"
+              type="button"
+              onClick={() => setViewMode('calendar')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                viewMode === 'calendar' 
+                  ? 'bg-indigo-600 text-white shadow-xs' 
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Tampilan Kalender Agenda"
+            >
+              <CalendarDays className="w-3.5 h-3.5" />
+              <span>Kalender Agenda</span>
             </button>
           </div>
         </div>
@@ -725,7 +772,20 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
       </div>
 
       {/* Content List */}
-      {filteredList.length === 0 ? (
+      {viewMode === 'calendar' ? (
+        <EduventureCalendarView
+          eduventureList={eduventureList}
+          tempatList={tempatList}
+          userRole={userRole}
+          onSelectBooking={(item) => {
+            setDetailItem(item);
+          }}
+          onEditBooking={handleOpenEdit}
+          onAddNewBooking={(date) => {
+            handleOpenAdd(date);
+          }}
+        />
+      ) : filteredList.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200/80 p-12 text-center shadow-sm">
           <div className="w-16 h-16 mx-auto mb-3 bg-slate-100 rounded-full flex items-center justify-center text-slate-400">
             <School className="w-8 h-8" />
@@ -737,7 +797,7 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
           {userRole !== 'VIEWER' && (
             <button
               type="button"
-              onClick={handleOpenAdd}
+              onClick={() => handleOpenAdd()}
               className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-[#002B66] text-white rounded-lg text-sm font-medium hover:bg-[#003882] transition-colors"
             >
               <Plus className="w-4 h-4" />
@@ -804,6 +864,15 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
                         Tgl Pelaksanaan:
                       </span>
                       <span className="font-semibold text-slate-800">{item.tanggalPelaksanaan}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                        Waktu Kegiatan:
+                      </span>
+                      <span className="font-semibold text-indigo-700 font-mono">
+                        {item.waktuMulai || '08:30'} - {item.waktuSelesai || '12:00'} WIB
+                      </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-slate-500 flex items-center gap-1.5">
@@ -957,7 +1026,11 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
                       </span>
                     </td>
                     <td className="py-3 px-4 font-medium text-slate-800 whitespace-nowrap">
-                      {item.tanggalPelaksanaan}
+                      <span className="font-semibold block">{item.tanggalPelaksanaan}</span>
+                      <span className="text-[11px] text-indigo-700 font-mono flex items-center gap-1 font-medium mt-0.5">
+                        <Clock className="w-3 h-3 text-indigo-500" />
+                        {item.waktuMulai || '08:30'} - {item.waktuSelesai || '12:00'} WIB
+                      </span>
                     </td>
                     <td className="py-3 px-4 whitespace-nowrap">
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200" title={item.tempatPenyelenggaraan || 'Bale Sawala'}>
@@ -1208,38 +1281,111 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Tanggal Pelaksanaan <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={formTanggalPelaksanaan}
-                      onChange={(e) => setFormTanggalPelaksanaan(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#002B66]/20 focus:border-[#002B66]"
-                    />
+                {/* Tanggal & Waktu Pelaksanaan */}
+                <div className="space-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                        Tanggal Pelaksanaan <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={formTanggalPelaksanaan}
+                        onChange={(e) => setFormTanggalPelaksanaan(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#002B66]/20 focus:border-[#002B66]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                        Waktu Mulai (WIB) <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="time"
+                          required
+                          value={formWaktuMulai}
+                          onChange={(e) => setFormWaktuMulai(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#002B66]/20 focus:border-[#002B66]"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                        Waktu Selesai (WIB) <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="time"
+                          required
+                          value={formWaktuSelesai}
+                          onChange={(e) => setFormWaktuSelesai(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#002B66]/20 focus:border-[#002B66]"
+                        />
+                      </div>
+                    </div>
                   </div>
 
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-medium text-slate-700">
-                        Tempat Penyelenggaraan <span className="text-rose-500">*</span>
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsCustomTempat(!isCustomTempat);
-                          if (!isCustomTempat) {
-                            setCustomTempatInput('');
-                          }
-                        }}
-                        className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold hover:underline flex items-center gap-0.5"
-                      >
-                        {isCustomTempat ? '← Pilih dari daftar' : '+ Tambah Baru'}
-                      </button>
-                    </div>
+                  {/* Preset Sesi Waktu */}
+                  <div className="flex items-center gap-1.5 flex-wrap text-[11px] text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+                    <span className="font-medium text-slate-600">Preset Sesi:</span>
+                    <button
+                      type="button"
+                      onClick={() => { setFormWaktuMulai('08:30'); setFormWaktuSelesai('12:00'); }}
+                      className={`px-2 py-0.5 rounded border transition-colors ${
+                        formWaktuMulai === '08:30' && formWaktuSelesai === '12:00'
+                          ? 'bg-[#002B66] text-white border-[#002B66]'
+                          : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                      }`}
+                    >
+                      Pagi (08:30 - 12:00)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setFormWaktuMulai('13:00'); setFormWaktuSelesai('16:30'); }}
+                      className={`px-2 py-0.5 rounded border transition-colors ${
+                        formWaktuMulai === '13:00' && formWaktuSelesai === '16:30'
+                          ? 'bg-[#002B66] text-white border-[#002B66]'
+                          : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                      }`}
+                    >
+                      Siang (13:00 - 16:30)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setFormWaktuMulai('09:00'); setFormWaktuSelesai('15:00'); }}
+                      className={`px-2 py-0.5 rounded border transition-colors ${
+                        formWaktuMulai === '09:00' && formWaktuSelesai === '15:00'
+                          ? 'bg-[#002B66] text-white border-[#002B66]'
+                          : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                      }`}
+                    >
+                      Full Day (09:00 - 15:00)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tempat Penyelenggaraan */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-medium text-slate-700">
+                      Tempat Penyelenggaraan <span className="text-rose-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCustomTempat(!isCustomTempat);
+                        if (!isCustomTempat) {
+                          setCustomTempatInput('');
+                        }
+                      }}
+                      className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold hover:underline flex items-center gap-0.5"
+                    >
+                      {isCustomTempat ? '← Pilih dari daftar' : '+ Tambah Baru'}
+                    </button>
+                  </div>
 
                     {!isCustomTempat ? (
                       <select
@@ -1297,7 +1443,6 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
                         </p>
                       </div>
                     )}
-                  </div>
                 </div>
 
                 <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 flex items-center justify-between text-xs">
@@ -1705,6 +1850,13 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
                 <div>
                   <span className="text-slate-400 block text-[11px]">Tanggal Pelaksanaan:</span>
                   <span className="font-bold text-slate-800 text-sm">{detailItem.tanggalPelaksanaan}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[11px]">Waktu Pelaksanaan:</span>
+                  <span className="font-bold text-indigo-700 text-sm flex items-center gap-1.5 mt-0.5 font-mono">
+                    <Clock className="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
+                    {detailItem.waktuMulai || '08:30'} - {detailItem.waktuSelesai || '12:00'} WIB
+                  </span>
                 </div>
                 <div>
                   <span className="text-slate-400 block text-[11px]">Tempat Penyelenggaraan:</span>

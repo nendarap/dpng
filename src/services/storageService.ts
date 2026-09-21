@@ -775,7 +775,12 @@ export function advancedSearchPeserta(filters: Partial<AdvancedSearchFilter>): P
 export function getEduventure(): EduventureBooking[] {
   initLocalStorage();
   const raw = localStorage.getItem(STORAGE_KEYS.EDUVENTURE);
-  return raw ? JSON.parse(raw) : DEFAULT_EDUVENTURE;
+  const list: EduventureBooking[] = raw ? JSON.parse(raw) : DEFAULT_EDUVENTURE;
+  return list.map(item => ({
+    ...item,
+    waktuMulai: item.waktuMulai || '08:30',
+    waktuSelesai: item.waktuSelesai || '12:00'
+  }));
 }
 
 // Tempat Penyelenggaraan Management
@@ -966,6 +971,8 @@ export function bulkImportEduventure(
       jumlahPeserta: Number(item.jumlahPeserta) || 0,
       jumlahGuru: Number(item.jumlahGuru) || 0,
       tanggalPelaksanaan: item.tanggalPelaksanaan,
+      waktuMulai: item.waktuMulai || '08:30',
+      waktuSelesai: item.waktuSelesai || '12:00',
       tempatPenyelenggaraan: venueName,
       skemaPaket: item.skemaPaket || 'Eduventure Experience',
       pilihanKunjungan: item.pilihanKunjungan || 'Universitas',

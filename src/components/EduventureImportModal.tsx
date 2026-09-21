@@ -69,6 +69,8 @@ export const EduventureImportModal: React.FC<EduventureImportModalProps> = ({
       'Jml Peserta',
       'Jml Guru',
       'Tgl Pelaksanaan (YYYY-MM-DD)',
+      'Waktu Mulai (HH:mm)',
+      'Waktu Selesai (HH:mm)',
       'Tempat Penyelenggaraan',
       'Paket (Eduventure Lite / Experience / Tematik)',
       'Pilihan Kunjungan (Universitas / Fakultas)',
@@ -90,6 +92,8 @@ export const EduventureImportModal: React.FC<EduventureImportModalProps> = ({
         120,
         8,
         '2026-04-15',
+        '08:30',
+        '12:00',
         'Auditorium Fakultas Farmasi',
         'Eduventure Experience',
         'Universitas',
@@ -109,6 +113,8 @@ export const EduventureImportModal: React.FC<EduventureImportModalProps> = ({
         85,
         6,
         '2026-05-10',
+        '09:00',
+        '12:30',
         'Auditorium Fakultas Ilmu Komunikasi',
         'Eduventure Tematik',
         'Fakultas',
@@ -128,6 +134,8 @@ export const EduventureImportModal: React.FC<EduventureImportModalProps> = ({
         150,
         10,
         '2026-06-05',
+        '08:00',
+        '11:30',
         'Bale Sawala',
         'Eduventure Lite',
         'Universitas',
@@ -236,6 +244,8 @@ export const EduventureImportModal: React.FC<EduventureImportModalProps> = ({
       const idxPeserta = getColIndex(['peserta', 'siswa', 'jml peserta', 'jumlah peserta']);
       const idxGuru = getColIndex(['guru', 'pendamping', 'jml guru', 'jumlah guru']);
       const idxTanggal = getColIndex(['tgl pelaksanaan', 'tanggal pelaksanaan', 'tgl kunjungan', 'tanggal', 'jadwal']);
+      const idxWaktuMulai = getColIndex(['waktu mulai', 'jam mulai', 'jam_mulai', 'waktu_mulai', 'mulai', 'start time']);
+      const idxWaktuSelesai = getColIndex(['waktu selesai', 'jam selesai', 'jam_selesai', 'waktu_selesai', 'selesai', 'end time']);
       const idxTempat = getColIndex(['tempat penyelenggaraan', 'tempat', 'lokasi penyelenggaraan', 'venue', 'gedung', 'bale']);
       const idxPaket = getColIndex(['paket', 'skema']);
       const idxPilihan = getColIndex(['pilihan kunjungan', 'pilihan', 'tujuan']);
@@ -262,6 +272,20 @@ export const EduventureImportModal: React.FC<EduventureImportModalProps> = ({
         const rawPeserta = idxPeserta >= 0 ? Number(String(row[idxPeserta]).replace(/[^\d]/g, '')) : (Number(row[5]) || 0);
         const rawGuru = idxGuru >= 0 ? Number(String(row[idxGuru]).replace(/[^\d]/g, '')) : (Number(row[6]) || 0);
         const rawTanggal = idxTanggal >= 0 ? parseExcelDate(row[idxTanggal]) : parseExcelDate(row[7]);
+        
+        const parseTimeString = (val: any, fallback: string) => {
+          if (!val) return fallback;
+          const s = String(val).trim();
+          const m = s.match(/(\d{1,2})[:.](\d{2})/);
+          if (m) {
+            return `${m[1].padStart(2, '0')}:${m[2]}`;
+          }
+          return fallback;
+        };
+
+        const rawWaktuMulai = idxWaktuMulai >= 0 ? parseTimeString(row[idxWaktuMulai], '08:30') : '08:30';
+        const rawWaktuSelesai = idxWaktuSelesai >= 0 ? parseTimeString(row[idxWaktuSelesai], '12:00') : '12:00';
+
         const rawTempat = idxTempat >= 0 ? String(row[idxTempat] || '').trim() : '';
         const rawPaket = idxPaket >= 0 ? String(row[idxPaket] || '').trim() : '';
         const rawPilihan = idxPilihan >= 0 ? String(row[idxPilihan] || '').trim() : '';
@@ -346,6 +370,8 @@ export const EduventureImportModal: React.FC<EduventureImportModalProps> = ({
             jumlahPeserta: rawPeserta || 0,
             jumlahGuru: rawGuru || 0,
             tanggalPelaksanaan: rawTanggal,
+            waktuMulai: rawWaktuMulai,
+            waktuSelesai: rawWaktuSelesai,
             tempatPenyelenggaraan: rawTempat || 'Bale Sawala',
             skemaPaket,
             pilihanKunjungan,
@@ -903,8 +929,11 @@ export const EduventureImportModal: React.FC<EduventureImportModalProps> = ({
                             </td>
 
                             <td className="py-2 px-3 whitespace-nowrap">
-                              <span className="font-mono text-slate-700">
+                              <span className="font-mono text-slate-700 block">
                                 {row.data.tanggalPelaksanaan || <span className="text-rose-500 italic">-</span>}
+                              </span>
+                              <span className="text-[10px] text-slate-500 block font-mono">
+                                {row.data.waktuMulai || '08:30'} - {row.data.waktuSelesai || '12:00'} WIB
                               </span>
                             </td>
 
