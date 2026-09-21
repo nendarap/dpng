@@ -4,7 +4,8 @@ import {
   CheckCircle2, Clock, School, MapPin, Phone, Mail, CreditCard, 
   FileText, ExternalLink, Edit2, Trash2, Eye, Download, Printer, 
   Layers, ChevronRight, Copy, Check, Upload, X, AlertTriangle, 
-  Building2, Landmark, Sparkles, FileSpreadsheet, LayoutGrid, Table, CalendarDays
+  Building2, Landmark, Sparkles, FileSpreadsheet, LayoutGrid, Table, CalendarDays,
+  BarChart3
 } from 'lucide-react';
 import { 
   EduventureBooking, Kategori, Program, UserRole, 
@@ -14,6 +15,7 @@ import {
 import { DEFAULT_MASTER_DATA } from '../data/initialData';
 import { EduventureImportModal } from './EduventureImportModal';
 import { EduventureCalendarView } from './EduventureCalendarView';
+import { EduventureDashboardView } from './EduventureDashboardView';
 import { 
   bulkImportEduventure, 
   getTempatEduventure, 
@@ -33,6 +35,7 @@ interface EduventureViewProps {
     mode: 'skip' | 'update' | 'force'
   ) => { success: boolean; message: string; count: number };
   onNavigateToKategori?: () => void;
+  initialViewMode?: 'dashboard' | 'card' | 'table' | 'calendar';
 }
 
 const REKENING_OPTIONS: { value: RekeningEduventure; label: string; bank: string; rek: string; deskripsi: string }[] = [
@@ -81,6 +84,7 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
   onDeleteEduventure,
   onBulkImportEduventure,
   onNavigateToKategori,
+  initialViewMode,
 }) => {
   // Filters & Controls
   const [searchQuery, setSearchQuery] = useState('');
@@ -89,7 +93,7 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
   const [filterKunjungan, setFilterKunjungan] = useState<string>('ALL');
   const [filterRekening, setFilterRekening] = useState<string>('ALL');
   const [filterTempat, setFilterTempat] = useState<string>('ALL');
-  const [viewMode, setViewMode] = useState<'card' | 'table' | 'calendar'>('card');
+  const [viewMode, setViewMode] = useState<'dashboard' | 'card' | 'table' | 'calendar'>(initialViewMode || 'card');
 
   // Dynamic Tempat Penyelenggaraan List
   const [tempatList, setTempatList] = useState<string[]>(() => getTempatEduventure());
@@ -513,6 +517,21 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
             )}
 
             <button
+              id="btn-header-dashboard-eduventure"
+              type="button"
+              onClick={() => setViewMode(viewMode === 'dashboard' ? 'card' : 'dashboard')}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md hover:shadow-lg transition-all duration-150 transform hover:-translate-y-0.5 border ${
+                viewMode === 'dashboard'
+                  ? 'bg-[#FDB913] text-slate-900 border-amber-300 font-bold'
+                  : 'bg-white/15 hover:bg-white/25 text-white border-white/20'
+              }`}
+              title="Buka Dashboard Eduventure"
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>Dashboard</span>
+            </button>
+
+            <button
               id="btn-header-kalender-eduventure"
               type="button"
               onClick={() => setViewMode(viewMode === 'calendar' ? 'card' : 'calendar')}
@@ -658,6 +677,20 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
 
           <div className="flex items-center gap-1.5 self-end sm:self-auto bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
+              id="btn-tab-dashboard-eduventure"
+              type="button"
+              onClick={() => setViewMode('dashboard')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                viewMode === 'dashboard' 
+                  ? 'bg-[#002B66] text-white shadow-xs' 
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Tampilan Dashboard Eduventure"
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span>Dashboard</span>
+            </button>
+            <button
               type="button"
               onClick={() => setViewMode('card')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
@@ -772,7 +805,19 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
       </div>
 
       {/* Content List */}
-      {viewMode === 'calendar' ? (
+      {viewMode === 'dashboard' ? (
+        <EduventureDashboardView
+          eduventureList={eduventureList}
+          onSelectBooking={(item) => {
+            setDetailItem(item);
+          }}
+          onEditBooking={handleOpenEdit}
+          onAddNewBooking={() => handleOpenAdd()}
+          onSwitchViewMode={(mode) => setViewMode(mode)}
+          onExportCSV={handleExportCSV}
+          userRole={userRole}
+        />
+      ) : viewMode === 'calendar' ? (
         <EduventureCalendarView
           eduventureList={eduventureList}
           tempatList={tempatList}

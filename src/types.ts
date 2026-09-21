@@ -161,6 +161,7 @@ export interface UserItem {
 
 export type AppMenuId = 
   | 'dashboard' 
+  | 'eduventure_dashboard'
   | 'map_dashboard' 
   | 'peserta' 
   | 'tambah' 

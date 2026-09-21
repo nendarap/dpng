@@ -7,6 +7,19 @@ export const APP_MENU_DEFINITIONS: AppMenuItemDef[] = [
     label: 'Dashboard Utama',
     kategoriModul: 'Dashboard & Peta',
     deskripsi: 'Ringkasan eksekutif statistik peserta, status kelulusan, dan grafik capaian program.',
+    urutan: 1,
+    aktif: true,
+    iconName: 'LayoutDashboard',
+    supportedActions: { canCreate: false, canEdit: false, canDelete: false, canExport: true }
+  },
+  {
+    id: 'eduventure_dashboard',
+    label: 'Dashboard Eduventure',
+    kategoriModul: 'Dashboard & Peta',
+    deskripsi: 'Analitik eksekutif kunjungan Eduventure, tren rombongan sekolah, realisasi pembayaran VA, dan utilisasi tempat.',
+    urutan: 2,
+    aktif: true,
+    iconName: 'BarChart3',
     supportedActions: { canCreate: false, canEdit: false, canDelete: false, canExport: true }
   },
   {
@@ -14,6 +27,9 @@ export const APP_MENU_DEFINITIONS: AppMenuItemDef[] = [
     label: 'Peta Sebaran (Map)',
     kategoriModul: 'Dashboard & Peta',
     deskripsi: 'Peta interaktif sebaran asal provinsi dan instansi peserta non-gelar Unpad se-Indonesia.',
+    urutan: 3,
+    aktif: true,
+    iconName: 'Map',
     supportedActions: { canCreate: false, canEdit: false, canDelete: false, canExport: true }
   },
 
@@ -167,6 +183,7 @@ export const ADMIN_PRIVILEGES: Record<string, MenuPrivilege> = createFullPrivile
 // 2. OPERATOR (Operator Data & Pelatihan)
 export const OPERATOR_PRIVILEGES: Record<string, MenuPrivilege> = {
   dashboard: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
+  eduventure_dashboard: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
   map_dashboard: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
   kategori: { canAccess: true, canCreate: true, canEdit: true, canDelete: false, canExport: true },
   program: { canAccess: true, canCreate: true, canEdit: true, canDelete: false, canExport: true },
@@ -188,6 +205,7 @@ export const OPERATOR_PRIVILEGES: Record<string, MenuPrivilege> = {
 // 3. VIEWER (Pengawas / Pimpinan Unpad) - Read-only
 export const VIEWER_PRIVILEGES: Record<string, MenuPrivilege> = {
   dashboard: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
+  eduventure_dashboard: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
   map_dashboard: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
   kategori: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
   program: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
@@ -209,6 +227,7 @@ export const VIEWER_PRIVILEGES: Record<string, MenuPrivilege> = {
 // 4. KEUANGAN (Verifikator Keuangan & Rekening Eduventure)
 export const KEUANGAN_PRIVILEGES: Record<string, MenuPrivilege> = {
   dashboard: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
+  eduventure_dashboard: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
   map_dashboard: { canAccess: false, canCreate: false, canEdit: false, canDelete: false, canExport: false },
   kategori: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
   program: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },

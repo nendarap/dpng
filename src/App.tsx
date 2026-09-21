@@ -551,6 +551,20 @@ export default function App() {
                 />
               )}
 
+              {activeTab === 'eduventure_dashboard' && (
+                <EduventureView
+                  eduventureList={eduventureList}
+                  kategoriList={kategoriList}
+                  programList={programList}
+                  userRole={currentUser.role}
+                  onSaveEduventure={handleSaveEduventure}
+                  onDeleteEduventure={handleDeleteEduventure}
+                  onBulkImportEduventure={handleBulkImportEduventure}
+                  onNavigateToKategori={() => setActiveTab('kategori')}
+                  initialViewMode="dashboard"
+                />
+              )}
+
               {activeTab === 'eduventure' && (
                 <EduventureView
                   eduventureList={eduventureList}
@@ -561,6 +575,7 @@ export default function App() {
                   onDeleteEduventure={handleDeleteEduventure}
                   onBulkImportEduventure={handleBulkImportEduventure}
                   onNavigateToKategori={() => setActiveTab('kategori')}
+                  initialViewMode="card"
                 />
               )}
 

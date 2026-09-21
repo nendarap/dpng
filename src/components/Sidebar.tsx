@@ -12,6 +12,7 @@ import { UnpadLogo } from './UnpadLogo';
 
 export type ActiveTab = 
   | 'dashboard' 
+  | 'eduventure_dashboard'
   | 'map_dashboard'
   | 'peserta' 
   | 'tambah' 
@@ -43,6 +44,7 @@ interface SidebarProps {
 
 const ICON_MAP: Record<string, React.ElementType> = {
   dashboard: LayoutDashboard,
+  eduventure_dashboard: BarChart3,
   map_dashboard: Map,
   peserta: Users,
   tambah: UserPlus,
@@ -108,10 +110,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
     if (userRole === 'ADMIN') return true;
     if (userRole === 'OPERATOR') {
-      return ['dashboard', 'map_dashboard', 'kategori', 'program', 'pic', 'peserta', 'tambah', 'eduventure', 'search', 'statistik', 'export', 'log', 'gas_code'].includes(itemId);
+      return ['dashboard', 'eduventure_dashboard', 'map_dashboard', 'kategori', 'program', 'pic', 'peserta', 'tambah', 'eduventure', 'search', 'statistik', 'export', 'log', 'gas_code'].includes(itemId);
     }
     if (userRole === 'VIEWER') {
-      return ['dashboard', 'map_dashboard', 'kategori', 'program', 'pic', 'peserta', 'eduventure', 'search', 'statistik', 'export', 'gas_code'].includes(itemId);
+      return ['dashboard', 'eduventure_dashboard', 'map_dashboard', 'kategori', 'program', 'pic', 'peserta', 'eduventure', 'search', 'statistik', 'export', 'gas_code'].includes(itemId);
     }
     return false;
   };
