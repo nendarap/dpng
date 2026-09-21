@@ -6,7 +6,7 @@ import {
 import { 
   DEFAULT_KATEGORI, DEFAULT_PROGRAM, DEFAULT_PESERTA, 
   DEFAULT_USERS, DEFAULT_LOGS, DEFAULT_SETTING, DEFAULT_PIC,
-  DEFAULT_EDUVENTURE
+  DEFAULT_EDUVENTURE, DEFAULT_TEMPAT_EDUVENTURE
 } from '../data/initialData';
 import { DEFAULT_GROUPS, APP_MENU_DEFINITIONS, ROLE_PRESET_MAP } from '../data/privilegeData';
 import { DEFAULT_LOGIN_SETTINGS } from '../data/loginPresets';
@@ -17,6 +17,7 @@ const STORAGE_KEYS = {
   PROGRAM: 'simpendik_unpad_program',
   PIC: 'simpendik_unpad_pic',
   EDUVENTURE: 'simpendik_unpad_eduventure',
+  TEMPAT_EDUVENTURE: 'simpendik_unpad_tempat_eduventure',
   USERS: 'simpendik_unpad_users',
   GROUPS: 'simpendik_unpad_groups',
   MENUS: 'simpendik_unpad_menus',
@@ -42,6 +43,9 @@ export function initLocalStorage(): void {
   }
   if (!localStorage.getItem(STORAGE_KEYS.EDUVENTURE)) {
     localStorage.setItem(STORAGE_KEYS.EDUVENTURE, JSON.stringify(DEFAULT_EDUVENTURE));
+  }
+  if (!localStorage.getItem(STORAGE_KEYS.TEMPAT_EDUVENTURE)) {
+    localStorage.setItem(STORAGE_KEYS.TEMPAT_EDUVENTURE, JSON.stringify(DEFAULT_TEMPAT_EDUVENTURE));
   }
   if (!localStorage.getItem(STORAGE_KEYS.GROUPS)) {
     localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(DEFAULT_GROUPS));
@@ -774,6 +778,47 @@ export function getEduventure(): EduventureBooking[] {
   return raw ? JSON.parse(raw) : DEFAULT_EDUVENTURE;
 }
 
+// Tempat Penyelenggaraan Management
+export function getTempatEduventure(): string[] {
+  initLocalStorage();
+  const raw = localStorage.getItem(STORAGE_KEYS.TEMPAT_EDUVENTURE);
+  const list: string[] = raw ? JSON.parse(raw) : DEFAULT_TEMPAT_EDUVENTURE;
+
+  // Scan existing bookings to ensure any custom venues are available
+  const eduList = getEduventure();
+  const venueSet = new Set<string>(list);
+  eduList.forEach(item => {
+    if (item.tempatPenyelenggaraan && item.tempatPenyelenggaraan.trim()) {
+      venueSet.add(item.tempatPenyelenggaraan.trim());
+    }
+  });
+
+  return Array.from(venueSet);
+}
+
+export function saveTempatEduventure(tempatList: string[]): void {
+  localStorage.setItem(STORAGE_KEYS.TEMPAT_EDUVENTURE, JSON.stringify(tempatList));
+}
+
+export function addTempatEduventure(namaTempat: string): string[] {
+  const trimmed = namaTempat.trim();
+  if (!trimmed) return getTempatEduventure();
+  const list = getTempatEduventure();
+  if (!list.includes(trimmed)) {
+    list.push(trimmed);
+    saveTempatEduventure(list);
+    writeLog('Tambah Tempat Eduventure', 'EDUVENTURE', trimmed, `Penambahan tempat penyelenggaraan baru: ${trimmed}`);
+  }
+  return list;
+}
+
+export function deleteTempatEduventure(namaTempat: string): string[] {
+  const list = getTempatEduventure().filter(t => t !== namaTempat);
+  saveTempatEduventure(list);
+  writeLog('Hapus Tempat Eduventure', 'EDUVENTURE', namaTempat, `Menghapus tempat penyelenggaraan: ${namaTempat}`);
+  return list;
+}
+
 export function generateNextIdEduventure(tahun?: number): string {
   const yr = tahun || new Date().getFullYear();
   const list = getEduventure();
@@ -796,6 +841,10 @@ export function saveEduventure(booking: EduventureBooking): { success: boolean; 
   const list = getEduventure();
   const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
   const idx = list.findIndex(item => item.id === booking.id);
+
+  if (booking.tempatPenyelenggaraan && booking.tempatPenyelenggaraan.trim()) {
+    addTempatEduventure(booking.tempatPenyelenggaraan.trim());
+  }
 
   if (idx >= 0) {
     list[idx] = {
@@ -900,6 +949,10 @@ export function bulkImportEduventure(
 
     const yr = new Date(item.tanggalPelaksanaan || new Date()).getFullYear() || new Date().getFullYear();
     const newId = item.id && !item.id.startsWith('temp-') ? item.id : getNextBatchId(yr);
+    const venueName = item.tempatPenyelenggaraan ? item.tempatPenyelenggaraan.trim() : 'Bale Sawala';
+    if (venueName) {
+      addTempatEduventure(venueName);
+    }
 
     const newBooking: EduventureBooking = {
       id: newId,
@@ -913,6 +966,7 @@ export function bulkImportEduventure(
       jumlahPeserta: Number(item.jumlahPeserta) || 0,
       jumlahGuru: Number(item.jumlahGuru) || 0,
       tanggalPelaksanaan: item.tanggalPelaksanaan,
+      tempatPenyelenggaraan: venueName,
       skemaPaket: item.skemaPaket || 'Eduventure Experience',
       pilihanKunjungan: item.pilihanKunjungan || 'Universitas',
       fakultasTujuan: item.fakultasTujuan || [],

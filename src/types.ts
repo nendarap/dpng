@@ -119,6 +119,7 @@ export interface EduventureBooking {
   jumlahPeserta: number; // Total peserta / siswa
   jumlahGuru?: number; // Guru pendamping
   tanggalPelaksanaan: string; // YYYY-MM-DD
+  tempatPenyelenggaraan?: string; // e.g. "Bale Sawala", "Bale Rucita", "Bale Santika", "Auditorium Fakultas Farmasi", etc.
   skemaPaket: SkemaPaketEduventure;
   pilihanKunjungan: PilihanKunjunganEduventure;
   fakultasTujuan?: string[]; // Daftar fakultas yang dipilih jika pilihan adalah Fakultas

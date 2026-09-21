@@ -69,6 +69,7 @@ export const EduventureImportModal: React.FC<EduventureImportModalProps> = ({
       'Jml Peserta',
       'Jml Guru',
       'Tgl Pelaksanaan (YYYY-MM-DD)',
+      'Tempat Penyelenggaraan',
       'Paket (Eduventure Lite / Experience / Tematik)',
       'Pilihan Kunjungan (Universitas / Fakultas)',
       'Fakultas Tujuan (Pisahkan Koma)',
@@ -89,6 +90,7 @@ export const EduventureImportModal: React.FC<EduventureImportModalProps> = ({
         120,
         8,
         '2026-04-15',
+        'Auditorium Fakultas Farmasi',
         'Eduventure Experience',
         'Universitas',
         'Fakultas Kedokteran, FMIPA',
@@ -107,6 +109,7 @@ export const EduventureImportModal: React.FC<EduventureImportModalProps> = ({
         85,
         6,
         '2026-05-10',
+        'Auditorium Fakultas Ilmu Komunikasi',
         'Eduventure Tematik',
         'Fakultas',
         'Fakultas Ekonomi dan Bisnis, Fakultas Ilmu Komunikasi',
@@ -125,6 +128,7 @@ export const EduventureImportModal: React.FC<EduventureImportModalProps> = ({
         150,
         10,
         '2026-06-05',
+        'Bale Sawala',
         'Eduventure Lite',
         'Universitas',
         'Rektorat Unpad, CISRAL',
@@ -232,6 +236,7 @@ export const EduventureImportModal: React.FC<EduventureImportModalProps> = ({
       const idxPeserta = getColIndex(['peserta', 'siswa', 'jml peserta', 'jumlah peserta']);
       const idxGuru = getColIndex(['guru', 'pendamping', 'jml guru', 'jumlah guru']);
       const idxTanggal = getColIndex(['tgl pelaksanaan', 'tanggal pelaksanaan', 'tgl kunjungan', 'tanggal', 'jadwal']);
+      const idxTempat = getColIndex(['tempat penyelenggaraan', 'tempat', 'lokasi penyelenggaraan', 'venue', 'gedung', 'bale']);
       const idxPaket = getColIndex(['paket', 'skema']);
       const idxPilihan = getColIndex(['pilihan kunjungan', 'pilihan', 'tujuan']);
       const idxFakultas = getColIndex(['fakultas tujuan', 'fakultas']);
@@ -257,6 +262,7 @@ export const EduventureImportModal: React.FC<EduventureImportModalProps> = ({
         const rawPeserta = idxPeserta >= 0 ? Number(String(row[idxPeserta]).replace(/[^\d]/g, '')) : (Number(row[5]) || 0);
         const rawGuru = idxGuru >= 0 ? Number(String(row[idxGuru]).replace(/[^\d]/g, '')) : (Number(row[6]) || 0);
         const rawTanggal = idxTanggal >= 0 ? parseExcelDate(row[idxTanggal]) : parseExcelDate(row[7]);
+        const rawTempat = idxTempat >= 0 ? String(row[idxTempat] || '').trim() : '';
         const rawPaket = idxPaket >= 0 ? String(row[idxPaket] || '').trim() : '';
         const rawPilihan = idxPilihan >= 0 ? String(row[idxPilihan] || '').trim() : '';
         const rawFakultas = idxFakultas >= 0 ? String(row[idxFakultas] || '').trim() : '';
@@ -340,6 +346,7 @@ export const EduventureImportModal: React.FC<EduventureImportModalProps> = ({
             jumlahPeserta: rawPeserta || 0,
             jumlahGuru: rawGuru || 0,
             tanggalPelaksanaan: rawTanggal,
+            tempatPenyelenggaraan: rawTempat || 'Bale Sawala',
             skemaPaket,
             pilihanKunjungan,
             fakultasTujuan,
@@ -825,6 +832,7 @@ export const EduventureImportModal: React.FC<EduventureImportModalProps> = ({
                         <th className="py-2.5 px-3">Status</th>
                         <th className="py-2.5 px-3">Nama Sekolah</th>
                         <th className="py-2.5 px-3">Tgl Kunjungan</th>
+                        <th className="py-2.5 px-3">Tempat</th>
                         <th className="py-2.5 px-3">Paket</th>
                         <th className="py-2.5 px-3 text-center">Peserta</th>
                         <th className="py-2.5 px-3">Narahubung</th>
@@ -836,7 +844,7 @@ export const EduventureImportModal: React.FC<EduventureImportModalProps> = ({
                     <tbody className="divide-y divide-slate-100">
                       {filteredPreview.length === 0 ? (
                         <tr>
-                          <td colSpan={10} className="py-8 text-center text-slate-400 text-xs">
+                          <td colSpan={11} className="py-8 text-center text-slate-400 text-xs">
                             Tidak ada data kunjungan yang sesuai dengan filter.
                           </td>
                         </tr>
@@ -897,6 +905,12 @@ export const EduventureImportModal: React.FC<EduventureImportModalProps> = ({
                             <td className="py-2 px-3 whitespace-nowrap">
                               <span className="font-mono text-slate-700">
                                 {row.data.tanggalPelaksanaan || <span className="text-rose-500 italic">-</span>}
+                              </span>
+                            </td>
+
+                            <td className="py-2 px-3 whitespace-nowrap">
+                              <span className="font-medium text-slate-800 text-[11px] block truncate max-w-[130px]" title={row.data.tempatPenyelenggaraan || 'Bale Sawala'}>
+                                {row.data.tempatPenyelenggaraan || 'Bale Sawala'}
                               </span>
                             </td>
 

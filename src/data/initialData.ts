@@ -791,6 +791,16 @@ export const DEFAULT_LOGS: LogAktivitas[] = [
   }
 ];
 
+export const DEFAULT_TEMPAT_EDUVENTURE: string[] = [
+  'Bale Sawala',
+  'Bale Rucita',
+  'Bale Santika',
+  'Auditorium Fakultas Farmasi',
+  'Auditorium Fakultas Ilmu Komunikasi',
+  'Gedung Rektorat Unpad',
+  'Auditorium Pascasarjana Unpad'
+];
+
 export const DEFAULT_EDUVENTURE: EduventureBooking[] = [
   {
     id: 'EDV-2026-0001',
@@ -804,6 +814,7 @@ export const DEFAULT_EDUVENTURE: EduventureBooking[] = [
     jumlahPeserta: 120,
     jumlahGuru: 8,
     tanggalPelaksanaan: '2026-10-15',
+    tempatPenyelenggaraan: 'Auditorium Fakultas Farmasi',
     skemaPaket: 'Eduventure Experience',
     pilihanKunjungan: 'Fakultas',
     fakultasTujuan: ['Fakultas Kedokteran (FK)', 'Fakultas Farmasi (FF)'],
@@ -830,6 +841,7 @@ export const DEFAULT_EDUVENTURE: EduventureBooking[] = [
     jumlahPeserta: 85,
     jumlahGuru: 5,
     tanggalPelaksanaan: '2026-10-22',
+    tempatPenyelenggaraan: 'Auditorium Fakultas Ilmu Komunikasi',
     skemaPaket: 'Eduventure Tematik',
     pilihanKunjungan: 'Fakultas',
     fakultasTujuan: ['Fakultas Ekonomi dan Bisnis (FEB)', 'Fakultas Hukum (FH)'],
@@ -856,6 +868,7 @@ export const DEFAULT_EDUVENTURE: EduventureBooking[] = [
     jumlahPeserta: 150,
     jumlahGuru: 10,
     tanggalPelaksanaan: '2026-11-05',
+    tempatPenyelenggaraan: 'Bale Sawala',
     skemaPaket: 'Eduventure Lite',
     pilihanKunjungan: 'Universitas',
     fakultasTujuan: [],
@@ -882,6 +895,7 @@ export const DEFAULT_EDUVENTURE: EduventureBooking[] = [
     jumlahPeserta: 95,
     jumlahGuru: 6,
     tanggalPelaksanaan: '2026-11-12',
+    tempatPenyelenggaraan: 'Bale Santika',
     skemaPaket: 'Eduventure Lite',
     pilihanKunjungan: 'Universitas',
     fakultasTujuan: [],
@@ -905,6 +919,7 @@ export const DEFAULT_EDUVENTURE: EduventureBooking[] = [
     jumlahPeserta: 60,
     jumlahGuru: 4,
     tanggalPelaksanaan: '2026-11-18',
+    tempatPenyelenggaraan: 'Bale Rucita',
     skemaPaket: 'Eduventure Tematik',
     pilihanKunjungan: 'Fakultas',
     fakultasTujuan: ['Fakultas Matematika dan Ilmu Pengetahuan Alam (FMIPA)', 'Fakultas Teknik Geologi (FTG)'],

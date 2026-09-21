@@ -13,7 +13,12 @@ import {
 } from '../types';
 import { DEFAULT_MASTER_DATA } from '../data/initialData';
 import { EduventureImportModal } from './EduventureImportModal';
-import { bulkImportEduventure } from '../services/storageService';
+import { 
+  bulkImportEduventure, 
+  getTempatEduventure, 
+  addTempatEduventure, 
+  deleteTempatEduventure 
+} from '../services/storageService';
 
 interface EduventureViewProps {
   eduventureList: EduventureBooking[];
@@ -82,7 +87,13 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
   const [filterStatusBayar, setFilterStatusBayar] = useState<string>('ALL');
   const [filterKunjungan, setFilterKunjungan] = useState<string>('ALL');
   const [filterRekening, setFilterRekening] = useState<string>('ALL');
+  const [filterTempat, setFilterTempat] = useState<string>('ALL');
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
+
+  // Dynamic Tempat Penyelenggaraan List
+  const [tempatList, setTempatList] = useState<string[]>(() => getTempatEduventure());
+  const [isManageTempatOpen, setIsManageTempatOpen] = useState<boolean>(false);
+  const [newVenueInput, setNewVenueInput] = useState<string>('');
 
   // Modals
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -104,6 +115,9 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
   const [formJumlahPeserta, setFormJumlahPeserta] = useState<number>(50);
   const [formJumlahGuru, setFormJumlahGuru] = useState<number>(4);
   const [formTanggalPelaksanaan, setFormTanggalPelaksanaan] = useState('');
+  const [formTempatPenyelenggaraan, setFormTempatPenyelenggaraan] = useState<string>('Bale Sawala');
+  const [isCustomTempat, setIsCustomTempat] = useState<boolean>(false);
+  const [customTempatInput, setCustomTempatInput] = useState<string>('');
   const [formSkemaPaket, setFormSkemaPaket] = useState<SkemaPaketEduventure>('Eduventure Experience');
   const [formPilihanKunjungan, setFormPilihanKunjungan] = useState<PilihanKunjunganEduventure>('Universitas');
   const [formFakultasTujuan, setFormFakultasTujuan] = useState<string[]>([]);
@@ -159,7 +173,8 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
           item.kontakPerson.toLowerCase().includes(q) ||
           item.nomorKontak.toLowerCase().includes(q) ||
           item.skemaPaket.toLowerCase().includes(q) ||
-          item.id.toLowerCase().includes(q);
+          item.id.toLowerCase().includes(q) ||
+          (item.tempatPenyelenggaraan && item.tempatPenyelenggaraan.toLowerCase().includes(q));
         if (!match) return false;
       }
 
@@ -183,12 +198,43 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
         return false;
       }
 
+      // Filter Tempat Penyelenggaraan
+      if (filterTempat !== 'ALL') {
+        const itemTempat = item.tempatPenyelenggaraan || 'Bale Sawala';
+        if (itemTempat !== filterTempat) {
+          return false;
+        }
+      }
+
       return true;
     });
-  }, [eduventureList, searchQuery, filterSkema, filterStatusBayar, filterKunjungan, filterRekening]);
+  }, [eduventureList, searchQuery, filterSkema, filterStatusBayar, filterKunjungan, filterRekening, filterTempat]);
+
+  // Venue Management Handlers
+  const handleAddNewVenueToStorage = (venueName: string) => {
+    if (!venueName.trim()) return;
+    const updated = addTempatEduventure(venueName.trim());
+    setTempatList(updated);
+    setNewVenueInput('');
+  };
+
+  const handleDeleteVenueFromStorage = (venueName: string) => {
+    if (confirm(`Hapus "${venueName}" dari daftar pilihan tempat?`)) {
+      const updated = deleteTempatEduventure(venueName);
+      setTempatList(updated);
+      if (formTempatPenyelenggaraan === venueName) {
+        setFormTempatPenyelenggaraan(updated[0] || 'Bale Sawala');
+      }
+      if (filterTempat === venueName) {
+        setFilterTempat('ALL');
+      }
+    }
+  };
 
   // Open Form Handlers
   const handleOpenAdd = () => {
+    const venues = getTempatEduventure();
+    setTempatList(venues);
     setEditingItem(null);
     setFormIdKategori(kategoriEduventure?.idKategori || 'KAT-006');
     setFormNamaSekolah('');
@@ -202,6 +248,9 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
     const d = new Date();
     d.setDate(d.getDate() + 14);
     setFormTanggalPelaksanaan(d.toISOString().substring(0, 10));
+    setFormTempatPenyelenggaraan(venues[0] || 'Bale Sawala');
+    setIsCustomTempat(false);
+    setCustomTempatInput('');
     setFormSkemaPaket('Eduventure Experience');
     setFormPilihanKunjungan('Universitas');
     setFormFakultasTujuan([]);
@@ -217,6 +266,7 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
   };
 
   const handleOpenEdit = (item: EduventureBooking) => {
+    const venues = getTempatEduventure();
     setEditingItem(item);
     setFormIdKategori(item.idKategori || kategoriEduventure?.idKategori || 'KAT-006');
     setFormNamaSekolah(item.namaSekolah);
@@ -227,6 +277,15 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
     setFormJumlahPeserta(item.jumlahPeserta || 0);
     setFormJumlahGuru(item.jumlahGuru || 0);
     setFormTanggalPelaksanaan(item.tanggalPelaksanaan);
+    const itemTempat = item.tempatPenyelenggaraan || 'Bale Sawala';
+    if (!venues.includes(itemTempat)) {
+      setTempatList([...venues, itemTempat]);
+    } else {
+      setTempatList(venues);
+    }
+    setFormTempatPenyelenggaraan(itemTempat);
+    setIsCustomTempat(false);
+    setCustomTempatInput('');
     setFormSkemaPaket(item.skemaPaket);
     setFormPilihanKunjungan(item.pilihanKunjungan);
     setFormFakultasTujuan(item.fakultasTujuan || []);
@@ -260,6 +319,15 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
     const matchedKat = kategoriList.find(k => k.idKategori === formIdKategori);
     const namaKat = matchedKat ? matchedKat.namaKategori : 'Eduventure';
 
+    const finalTempat = isCustomTempat && customTempatInput.trim()
+      ? customTempatInput.trim()
+      : (formTempatPenyelenggaraan.trim() || 'Bale Sawala');
+
+    if (finalTempat) {
+      addTempatEduventure(finalTempat);
+      setTempatList(getTempatEduventure());
+    }
+
     const payload: EduventureBooking = {
       id: editingItem ? editingItem.id : '',
       idKategori: formIdKategori,
@@ -272,6 +340,7 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
       jumlahPeserta: Number(formJumlahPeserta) || 0,
       jumlahGuru: Number(formJumlahGuru) || 0,
       tanggalPelaksanaan: formTanggalPelaksanaan,
+      tempatPenyelenggaraan: finalTempat,
       skemaPaket: formSkemaPaket,
       pilihanKunjungan: formPilihanKunjungan,
       fakultasTujuan: formPilihanKunjungan === 'Fakultas' ? formFakultasTujuan : [],
@@ -323,7 +392,7 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
   const handleExportCSV = () => {
     const headers = [
       'ID Kunjungan', 'Nama Sekolah', 'Alamat', 'Narahubung', 'No Kontak', 
-      'Jml Peserta', 'Jml Guru', 'Tgl Pelaksanaan', 'Paket', 'Pilihan Kunjungan', 
+      'Jml Peserta', 'Jml Guru', 'Tgl Pelaksanaan', 'Tempat Penyelenggaraan', 'Paket', 'Pilihan Kunjungan', 
       'Fakultas Tujuan', 'Status Bayar', 'Nominal Transfer', 'Tgl Transfer', 'Rekening'
     ];
     const rows = filteredList.map(item => [
@@ -335,6 +404,7 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
       item.jumlahPeserta,
       item.jumlahGuru || 0,
       item.tanggalPelaksanaan,
+      `"${(item.tempatPenyelenggaraan || 'Bale Sawala').replace(/"/g, '""')}"`,
       `"${item.skemaPaket}"`,
       `"${item.pilihanKunjungan}"`,
       `"${(item.fakultasTujuan || []).join('; ')}"`,
@@ -410,6 +480,19 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
                 >
                   <FileSpreadsheet className="w-4 h-4 text-emerald-100" />
                   <span>Import Data</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTempatList(getTempatEduventure());
+                    setIsManageTempatOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md hover:shadow-lg transition-all duration-150 transform hover:-translate-y-0.5 border border-purple-500/40"
+                  title="Kelola Daftar Pilihan Tempat Penyelenggaraan"
+                >
+                  <Building2 className="w-4 h-4 text-purple-200" />
+                  <span className="hidden sm:inline">Kelola Tempat</span>
                 </button>
               </>
             )}
@@ -571,7 +654,7 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
         </div>
 
         {/* Dropdown Filters */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2 border-t border-slate-100 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 pt-2 border-t border-slate-100 text-xs">
           <div>
             <label className="block text-[11px] font-medium text-slate-500 mb-1">Skema / Paket</label>
             <select
@@ -609,6 +692,20 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
               <option value="ALL">Semua Kunjungan</option>
               <option value="Universitas">Universitas (Landmark)</option>
               <option value="Fakultas">Fakultas Tertentu</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-medium text-slate-500 mb-1">Tempat Penyelenggaraan</label>
+            <select
+              value={filterTempat}
+              onChange={(e) => setFilterTempat(e.target.value)}
+              className="w-full py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 text-xs focus:outline-none focus:ring-1 focus:ring-[#002B66]"
+            >
+              <option value="ALL">Semua Tempat ({tempatList.length})</option>
+              {tempatList.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
             </select>
           </div>
 
@@ -707,6 +804,15 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
                         Tgl Pelaksanaan:
                       </span>
                       <span className="font-semibold text-slate-800">{item.tanggalPelaksanaan}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-purple-600" />
+                        Tempat:
+                      </span>
+                      <span className="font-semibold text-slate-800 truncate max-w-[170px] text-right" title={item.tempatPenyelenggaraan || 'Bale Sawala'}>
+                        {item.tempatPenyelenggaraan || 'Bale Sawala'}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-slate-500 flex items-center gap-1.5">
@@ -826,6 +932,7 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
                   <th className="py-3 px-4">ID & Sekolah</th>
                   <th className="py-3 px-4">Paket & Kunjungan</th>
                   <th className="py-3 px-4">Tgl Pelaksanaan</th>
+                  <th className="py-3 px-4">Tempat</th>
                   <th className="py-3 px-4">Peserta</th>
                   <th className="py-3 px-4">Narahubung & Kontak</th>
                   <th className="py-3 px-4">Status Bayar</th>
@@ -851,6 +958,12 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
                     </td>
                     <td className="py-3 px-4 font-medium text-slate-800 whitespace-nowrap">
                       {item.tanggalPelaksanaan}
+                    </td>
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200" title={item.tempatPenyelenggaraan || 'Bale Sawala'}>
+                        <Building2 className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
+                        <span className="truncate max-w-[140px]">{item.tempatPenyelenggaraan || 'Bale Sawala'}</span>
+                      </span>
                     </td>
                     <td className="py-3 px-4 whitespace-nowrap">
                       <span className="font-bold text-slate-800">{item.jumlahPeserta}</span> Siswa
@@ -1059,14 +1172,14 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
                 </div>
               </div>
 
-              {/* SECTION 2: Peserta & Pelaksanaan */}
+              {/* SECTION 2: Peserta, Pelaksanaan & Tempat */}
               <div className="space-y-3 pt-3 border-t border-slate-100">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-indigo-600" />
-                  2. Jumlah Peserta & Tanggal Pelaksanaan
+                  2. Jumlah Peserta, Tanggal & Tempat Penyelenggaraan
                 </h4>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">
                       Jumlah Siswa (Peserta) <span className="text-rose-500">*</span>
@@ -1093,7 +1206,9 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#002B66]/20 focus:border-[#002B66]"
                     />
                   </div>
+                </div>
 
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">
                       Tanggal Pelaksanaan <span className="text-rose-500">*</span>
@@ -1105,6 +1220,83 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
                       onChange={(e) => setFormTanggalPelaksanaan(e.target.value)}
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#002B66]/20 focus:border-[#002B66]"
                     />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-medium text-slate-700">
+                        Tempat Penyelenggaraan <span className="text-rose-500">*</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCustomTempat(!isCustomTempat);
+                          if (!isCustomTempat) {
+                            setCustomTempatInput('');
+                          }
+                        }}
+                        className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold hover:underline flex items-center gap-0.5"
+                      >
+                        {isCustomTempat ? '← Pilih dari daftar' : '+ Tambah Baru'}
+                      </button>
+                    </div>
+
+                    {!isCustomTempat ? (
+                      <select
+                        id="select-tempat-penyelenggaraan"
+                        value={formTempatPenyelenggaraan}
+                        onChange={(e) => {
+                          if (e.target.value === '__ADD_NEW__') {
+                            setIsCustomTempat(true);
+                            setCustomTempatInput('');
+                          } else {
+                            setFormTempatPenyelenggaraan(e.target.value);
+                          }
+                        }}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#002B66]/20 focus:border-[#002B66] bg-white"
+                      >
+                        {tempatList.map((t) => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                        <option value="__ADD_NEW__">+ Tambah Tempat Lainnya...</option>
+                      </select>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <div className="flex gap-1.5">
+                          <input
+                            type="text"
+                            placeholder="Ketik tempat/gedung baru..."
+                            value={customTempatInput}
+                            onChange={(e) => setCustomTempatInput(e.target.value)}
+                            className="flex-1 px-3 py-2 border border-blue-400 bg-blue-50/20 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (customTempatInput.trim()) {
+                                handleAddNewVenueToStorage(customTempatInput.trim());
+                                setFormTempatPenyelenggaraan(customTempatInput.trim());
+                                setIsCustomTempat(false);
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-[#002B66] text-white rounded-lg text-xs font-semibold hover:bg-blue-900"
+                          >
+                            Simpan
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setIsCustomTempat(false)}
+                            className="px-2 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-medium hover:bg-slate-300"
+                          >
+                            Batal
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-slate-500">
+                          Tempat baru akan otomatis tersimpan dalam daftar pilihan.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1515,6 +1707,19 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
                   <span className="font-bold text-slate-800 text-sm">{detailItem.tanggalPelaksanaan}</span>
                 </div>
                 <div>
+                  <span className="text-slate-400 block text-[11px]">Tempat Penyelenggaraan:</span>
+                  <span className="font-bold text-purple-900 text-sm flex items-center gap-1.5 mt-0.5">
+                    <Building2 className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                    {detailItem.tempatPenyelenggaraan || 'Bale Sawala'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[11px]">Jumlah Rombongan:</span>
+                  <span className="font-semibold text-slate-800">
+                    {detailItem.jumlahPeserta} Siswa + {detailItem.jumlahGuru || 0} Guru Pendamping
+                  </span>
+                </div>
+                <div className="col-span-2">
                   <span className="text-slate-400 block text-[11px]">Pilihan Kunjungan:</span>
                   <span className="font-semibold text-slate-800">{detailItem.pilihanKunjungan}</span>
                   {detailItem.fakultasTujuan && detailItem.fakultasTujuan.length > 0 && (
@@ -1522,12 +1727,6 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
                       Fakultas: {detailItem.fakultasTujuan.join(', ')}
                     </span>
                   )}
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Jumlah Rombongan:</span>
-                  <span className="font-semibold text-slate-800">
-                    {detailItem.jumlahPeserta} Siswa + {detailItem.jumlahGuru || 0} Guru Pendamping
-                  </span>
                 </div>
               </div>
 
@@ -1693,6 +1892,114 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
                 className="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-sm"
               >
                 Ya, Hapus Kunjungan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL KELOLA TEMPAT PENYELENGGARAAN ================= */}
+      {isManageTempatOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95">
+            {/* Modal Header */}
+            <div className="bg-[#2D1B69] p-5 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-white/10 rounded-xl">
+                  <Building2 className="w-5 h-5 text-purple-300" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Kelola Tempat Penyelenggaraan</h3>
+                  <p className="text-xs text-purple-200">Daftar gedung & auditorium kegiatan Eduventure Unpad</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsManageTempatOpen(false)}
+                className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5">
+              {/* Form Tambah Tempat Baru */}
+              <div className="bg-purple-50/60 p-4 rounded-xl border border-purple-100">
+                <label className="block text-xs font-bold text-purple-900 mb-1.5">
+                  Tambah Tempat / Auditorium Baru:
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Contoh: Bale Rucita / Auditorium Pascasarjana"
+                    value={newVenueInput}
+                    onChange={(e) => setNewVenueInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddNewVenueToStorage(newVenueInput);
+                      }
+                    }}
+                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleAddNewVenueToStorage(newVenueInput)}
+                    className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white font-semibold rounded-lg text-xs shadow-sm transition-colors flex items-center gap-1.5 flex-shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Tambah
+                  </button>
+                </div>
+              </div>
+
+              {/* List of Existing Venues */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-slate-700">
+                    Daftar Tempat Tersedia ({tempatList.length})
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    Tersimpan otomatis
+                  </span>
+                </div>
+
+                <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1 divide-y divide-slate-100">
+                  {tempatList.map((venue, idx) => (
+                    <div
+                      key={venue}
+                      className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50 transition-colors group"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-[10px] font-bold flex items-center justify-center">
+                          {idx + 1}
+                        </span>
+                        <span className="text-xs font-semibold text-slate-800">{venue}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteVenueFromStorage(venue)}
+                        className="opacity-60 group-hover:opacity-100 text-slate-400 hover:text-rose-600 p-1 rounded hover:bg-rose-50 transition-all text-xs flex items-center gap-1"
+                        title={`Hapus ${venue}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span className="text-[11px]">Hapus</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsManageTempatOpen(false)}
+                className="px-5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl"
+              >
+                Selesai
               </button>
             </div>
           </div>
