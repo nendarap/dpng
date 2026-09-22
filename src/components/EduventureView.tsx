@@ -16,6 +16,7 @@ import { DEFAULT_MASTER_DATA } from '../data/initialData';
 import { EduventureImportModal } from './EduventureImportModal';
 import { EduventureCalendarView } from './EduventureCalendarView';
 import { EduventureDashboardView } from './EduventureDashboardView';
+import { EduventureMapView } from './EduventureMapView';
 import { 
   bulkImportEduventure, 
   getTempatEduventure, 
@@ -35,7 +36,7 @@ interface EduventureViewProps {
     mode: 'skip' | 'update' | 'force'
   ) => { success: boolean; message: string; count: number };
   onNavigateToKategori?: () => void;
-  initialViewMode?: 'dashboard' | 'card' | 'table' | 'calendar';
+  initialViewMode?: 'dashboard' | 'card' | 'table' | 'calendar' | 'map';
 }
 
 const REKENING_OPTIONS: { value: RekeningEduventure; label: string; bank: string; rek: string; deskripsi: string }[] = [
@@ -93,7 +94,7 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
   const [filterKunjungan, setFilterKunjungan] = useState<string>('ALL');
   const [filterRekening, setFilterRekening] = useState<string>('ALL');
   const [filterTempat, setFilterTempat] = useState<string>('ALL');
-  const [viewMode, setViewMode] = useState<'dashboard' | 'card' | 'table' | 'calendar'>(initialViewMode || 'card');
+  const [viewMode, setViewMode] = useState<'dashboard' | 'card' | 'table' | 'calendar' | 'map'>(initialViewMode || 'card');
 
   // Dynamic Tempat Penyelenggaraan List
   const [tempatList, setTempatList] = useState<string[]>(() => getTempatEduventure());
@@ -720,7 +721,7 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
               id="btn-tab-kalender-agenda"
               type="button"
               onClick={() => setViewMode('calendar')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 viewMode === 'calendar' 
                   ? 'bg-indigo-600 text-white shadow-xs' 
                   : 'text-slate-600 hover:text-slate-900'
@@ -729,6 +730,20 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
             >
               <CalendarDays className="w-3.5 h-3.5" />
               <span>Kalender Agenda</span>
+            </button>
+            <button
+              id="btn-tab-peta-eduventure"
+              type="button"
+              onClick={() => setViewMode('map')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                viewMode === 'map' 
+                  ? 'bg-emerald-600 text-white shadow-xs' 
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Tampilan Peta Eduventure"
+            >
+              <MapPin className="w-3.5 h-3.5" />
+              <span>Peta</span>
             </button>
           </div>
         </div>
@@ -830,6 +845,17 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
             handleOpenAdd(date);
           }}
         />
+      ) : viewMode === 'map' ? (
+        <div className="space-y-4">
+          <EduventureMapView
+            eduventureList={filteredList}
+            onSelectBooking={(item) => {
+              setDetailItem(item);
+            }}
+            userRole={userRole}
+            isEmbedded={false}
+          />
+        </div>
       ) : filteredList.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200/80 p-12 text-center shadow-sm">
           <div className="w-16 h-16 mx-auto mb-3 bg-slate-100 rounded-full flex items-center justify-center text-slate-400">

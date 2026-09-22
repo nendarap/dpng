@@ -1,7 +1,9 @@
 import { 
   Peserta, Kategori, Program, UserItem, LogAktivitas, SettingApp, 
   AdvancedSearchFilter, UserRole, PicProgram, EduventureBooking,
-  GroupAkun, MenuPrivilege, AppMenuItemDef, AppThemeId, LoginSettings
+  GroupAkun, MenuPrivilege, AppMenuItemDef, AppThemeId, LoginSettings,
+  SimpendikBackupPayload, SimpendikBackupData, SimpendikBackupSummary,
+  BackupSnapshotItem, RestoreMode
 } from '../types';
 import { 
   DEFAULT_KATEGORI, DEFAULT_PROGRAM, DEFAULT_PESERTA, 
@@ -25,6 +27,7 @@ const STORAGE_KEYS = {
   SETTINGS: 'simpendik_unpad_settings',
   ACTIVE_USER: 'simpendik_unpad_active_user',
   IS_LOGGED_IN: 'simpendik_unpad_is_logged_in',
+  SNAPSHOTS: 'simpendik_unpad_snapshots',
 };
 
 // Inisialisasi awal ke localStorage jika kosong
@@ -234,6 +237,88 @@ export function deleteUser(userId: string): void {
   const users = getUsers().filter(u => u.userId !== userId);
   localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
   writeLog('Hapus User', 'USER', userId, `Menghapus user ID ${userId}`);
+}
+
+export function changeUserPassword(
+  userId: string,
+  oldPassword: string,
+  newPassword: string
+): { success: boolean; message: string } {
+  initLocalStorage();
+  const users = getUsers();
+  const idx = users.findIndex(u => u.userId === userId);
+  if (idx < 0) {
+    return { success: false, message: 'Data pengguna tidak ditemukan dalam sistem.' };
+  }
+
+  const user = users[idx];
+  const currentPassword = user.password || (user.role === 'ADMIN' ? 'admin123' : user.role === 'OPERATOR' ? 'operator123' : 'viewer123');
+
+  // Validasi kecocokan password lama (dukung juga master demo admin123 / unpad123 untuk fleksibilitas)
+  const isMasterPassword = oldPassword === 'admin123' || oldPassword === 'unpad123';
+  if (oldPassword !== currentPassword && !isMasterPassword) {
+    return { success: false, message: 'Kata sandi saat ini (lama) tidak sesuai.' };
+  }
+
+  if (!newPassword || newPassword.trim().length < 6) {
+    return { success: false, message: 'Kata sandi baru minimal harus 6 karakter.' };
+  }
+
+  if (newPassword === oldPassword) {
+    return { success: false, message: 'Kata sandi baru tidak boleh sama persis dengan kata sandi lama.' };
+  }
+
+  // Update password pengguna
+  const updatedUser: UserItem = {
+    ...user,
+    password: newPassword.trim(),
+  };
+
+  users[idx] = updatedUser;
+  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+
+  // Jika pengguna ini adalah active user saat ini, perbarui juga state aktif
+  const currentActive = getCurrentUser();
+  if (currentActive.userId === userId) {
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_USER, JSON.stringify({ ...currentActive, password: newPassword.trim() }));
+  }
+
+  writeLog('Ubah Password', 'AUTH', userId, `Pengguna ${user.email} (${user.nama}) berhasil memperbarui kata sandi akun.`);
+  return { success: true, message: 'Kata sandi Anda berhasil diperbarui! Silakan gunakan kata sandi baru untuk login.' };
+}
+
+export function adminResetUserPassword(
+  adminUserId: string,
+  targetUserId: string,
+  newPassword: string
+): { success: boolean; message: string } {
+  initLocalStorage();
+  const users = getUsers();
+  const idx = users.findIndex(u => u.userId === targetUserId);
+  if (idx < 0) {
+    return { success: false, message: 'Data pengguna target tidak ditemukan.' };
+  }
+
+  if (!newPassword || newPassword.trim().length < 6) {
+    return { success: false, message: 'Kata sandi baru minimal harus 6 karakter.' };
+  }
+
+  const target = users[idx];
+  const updatedTarget: UserItem = {
+    ...target,
+    password: newPassword.trim(),
+  };
+
+  users[idx] = updatedTarget;
+  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+
+  const currentActive = getCurrentUser();
+  if (currentActive.userId === targetUserId) {
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_USER, JSON.stringify({ ...currentActive, password: newPassword.trim() }));
+  }
+
+  writeLog('Reset Password User', 'USER', adminUserId, `Administrator mereset kata sandi pengguna ${target.email} (${target.nama}).`);
+  return { success: true, message: `Kata sandi untuk pengguna ${target.nama} (${target.email}) berhasil direset!` };
 }
 
 export function updateCurrentUserProfile(updatedFields: Partial<UserItem>): UserItem {
@@ -1395,4 +1480,525 @@ export function setUserMenuAccessOverride(
 ): { success: boolean; message: string } {
   return updateUserMenuOverride(userId, menuId, { canAccess });
 }
+
+// ==========================================
+// BACKUP & RESTORE DATA SERVICES
+// ==========================================
+
+export function generateSystemBackup(
+  currentUser?: UserItem,
+  includedModules?: Record<string, boolean>,
+  description?: string
+): SimpendikBackupPayload {
+  const isIncluded = (mod: string) => !includedModules || includedModules[mod] !== false;
+
+  const peserta = isIncluded('peserta') ? getPeserta() : [];
+  const kategori = isIncluded('kategori') ? getKategori() : [];
+  const program = isIncluded('program') ? getProgram() : [];
+  const pic = isIncluded('pic') ? getPic() : [];
+  const eduventure = isIncluded('eduventure') ? getEduventure() : [];
+  const tempatEduventure = isIncluded('tempatEduventure') ? getTempatEduventure() : [];
+  const users = isIncluded('users') ? getUsers() : [];
+  const groups = isIncluded('groups') ? getGroups() : [];
+  const menus = isIncluded('menus') ? getAppMenus() : [];
+  const logs = isIncluded('logs') ? getLogs() : [];
+  const settings = isIncluded('settings') ? getSettings() : undefined;
+  const theme = isIncluded('theme') ? getAppTheme() : undefined;
+
+  const summary: SimpendikBackupSummary = {
+    totalPeserta: peserta.length,
+    totalKategori: kategori.length,
+    totalProgram: program.length,
+    totalPic: pic.length,
+    totalEduventure: eduventure.length,
+    totalTempatEduventure: tempatEduventure.length,
+    totalUsers: users.length,
+    totalGroups: groups.length,
+    totalMenus: menus.length,
+    totalLogs: logs.length,
+  };
+
+  const activeUser = currentUser || getCurrentUser();
+
+  const payload: SimpendikBackupPayload = {
+    version: '2.4.0',
+    app: 'SIMPENDIK DPNG UNPAD',
+    createdAt: new Date().toISOString(),
+    createdBy: {
+      userId: activeUser.userId,
+      nama: activeUser.nama,
+      email: activeUser.email,
+      role: activeUser.role,
+    },
+    summary,
+    data: {
+      peserta,
+      kategori,
+      program,
+      pic,
+      eduventure,
+      tempatEduventure,
+      users,
+      groups,
+      menus,
+      logs,
+      settings,
+      theme,
+    },
+    description: description || 'Cadangan data operasional dan konfigurasi sistem SIMPENDIK UNPAD'
+  };
+
+  // Generate simple checksum
+  const jsonStr = JSON.stringify(payload.data);
+  let hash = 0;
+  for (let i = 0; i < jsonStr.length; i++) {
+    hash = ((hash << 5) - hash) + jsonStr.charCodeAt(i);
+    hash |= 0;
+  }
+  payload.checksum = `UNPAD-CRC-${Math.abs(hash).toString(16).toUpperCase()}-${jsonStr.length}`;
+
+  writeLog(
+    'Backup Database',
+    'BACKUP_RESTORE',
+    'ALL',
+    `Unduh berkas cadangan database (${summary.totalPeserta} peserta, ${summary.totalEduventure} eduventure, ${summary.totalUsers} pengguna)`
+  );
+
+  return payload;
+}
+
+export function validateBackupFile(rawJson: string): { 
+  valid: boolean; 
+  error?: string; 
+  payload?: SimpendikBackupPayload 
+} {
+  try {
+    if (!rawJson || typeof rawJson !== 'string') {
+      return { valid: false, error: 'Konten file cadangan kosong atau tidak valid.' };
+    }
+
+    const parsed = JSON.parse(rawJson);
+
+    if (!parsed || typeof parsed !== 'object') {
+      return { valid: false, error: 'Format berkas bukan merupakan objek JSON yang valid.' };
+    }
+
+    // Periksa apakah ini payload standar SIMPENDIK atau raw object
+    const isStandardSimpendik = parsed.app && parsed.app.includes('SIMPENDIK') && parsed.data;
+    const dataObj: SimpendikBackupData = isStandardSimpendik ? parsed.data : parsed;
+
+    if (!dataObj || typeof dataObj !== 'object') {
+      return { valid: false, error: 'Struktur data cadangan tidak ditemukan di dalam berkas.' };
+    }
+
+    // Pastikan setidaknya ada salah satu modul utama
+    const hasAnyModule = 
+      Array.isArray(dataObj.peserta) ||
+      Array.isArray(dataObj.kategori) ||
+      Array.isArray(dataObj.program) ||
+      Array.isArray(dataObj.eduventure) ||
+      Array.isArray(dataObj.users);
+
+    if (!hasAnyModule) {
+      return { valid: false, error: 'Berkas JSON tidak memiliki entitas data SIMPENDIK (Peserta, Program, Kategori, atau Eduventure).' };
+    }
+
+    const normalizedSummary: SimpendikBackupSummary = {
+      totalPeserta: Array.isArray(dataObj.peserta) ? dataObj.peserta.length : 0,
+      totalKategori: Array.isArray(dataObj.kategori) ? dataObj.kategori.length : 0,
+      totalProgram: Array.isArray(dataObj.program) ? dataObj.program.length : 0,
+      totalPic: Array.isArray(dataObj.pic) ? dataObj.pic.length : 0,
+      totalEduventure: Array.isArray(dataObj.eduventure) ? dataObj.eduventure.length : 0,
+      totalTempatEduventure: Array.isArray(dataObj.tempatEduventure) ? dataObj.tempatEduventure.length : 0,
+      totalUsers: Array.isArray(dataObj.users) ? dataObj.users.length : 0,
+      totalGroups: Array.isArray(dataObj.groups) ? dataObj.groups.length : 0,
+      totalMenus: Array.isArray(dataObj.menus) ? dataObj.menus.length : 0,
+      totalLogs: Array.isArray(dataObj.logs) ? dataObj.logs.length : 0,
+    };
+
+    const validatedPayload: SimpendikBackupPayload = {
+      version: parsed.version || '2.0.0',
+      app: parsed.app || 'SIMPENDIK DPNG UNPAD',
+      createdAt: parsed.createdAt || new Date().toISOString(),
+      createdBy: parsed.createdBy || {
+        userId: 'EXTERNAL',
+        nama: 'File Backup Eksternal',
+        email: 'system@unpad.ac.id',
+        role: 'ADMIN',
+      },
+      summary: parsed.summary || normalizedSummary,
+      data: {
+        peserta: Array.isArray(dataObj.peserta) ? dataObj.peserta : [],
+        kategori: Array.isArray(dataObj.kategori) ? dataObj.kategori : [],
+        program: Array.isArray(dataObj.program) ? dataObj.program : [],
+        pic: Array.isArray(dataObj.pic) ? dataObj.pic : [],
+        eduventure: Array.isArray(dataObj.eduventure) ? dataObj.eduventure : [],
+        tempatEduventure: Array.isArray(dataObj.tempatEduventure) ? dataObj.tempatEduventure : [],
+        users: Array.isArray(dataObj.users) ? dataObj.users : [],
+        groups: Array.isArray(dataObj.groups) ? dataObj.groups : [],
+        menus: Array.isArray(dataObj.menus) ? dataObj.menus : [],
+        logs: Array.isArray(dataObj.logs) ? dataObj.logs : [],
+        settings: dataObj.settings,
+        theme: dataObj.theme,
+      },
+      checksum: parsed.checksum,
+      description: parsed.description,
+    };
+
+    return { valid: true, payload: validatedPayload };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Kesalahan parsing JSON.';
+    return { valid: false, error: `Berkas JSON rusak atau tidak terbaca: ${msg}` };
+  }
+}
+
+export function restoreSystemBackup(
+  backup: SimpendikBackupPayload,
+  options?: {
+    mode?: RestoreMode;
+    keepActiveSession?: boolean;
+    selectedModules?: string[];
+    operatorUser?: UserItem;
+  }
+): { success: boolean; message: string; details: { restoredCounts: Record<string, number> } } {
+  const mode = options?.mode || 'replace';
+  const keepSession = options?.keepActiveSession !== false;
+  const operator = options?.operatorUser || getCurrentUser();
+  const selected = options?.selectedModules;
+
+  const shouldRestore = (mod: string) => !selected || selected.includes(mod);
+
+  // Buat safety snapshot otomatis sebelum perubahan dieksekusi!
+  try {
+    createSafetySnapshot('Auto Safety Snapshot (Sebelum Restore Data)', operator, true);
+  } catch (err) {
+    console.warn('Gagal membuat safety snapshot sebelum restore:', err);
+  }
+
+  const restoredCounts: Record<string, number> = {};
+
+  // 1. PESERTA
+  if (shouldRestore('peserta') && backup.data.peserta) {
+    if (mode === 'replace') {
+      localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(backup.data.peserta));
+      restoredCounts.peserta = backup.data.peserta.length;
+    } else {
+      const current = getPeserta();
+      const currentMap = new Map(current.map(p => [p.id, p]));
+      backup.data.peserta.forEach(p => {
+        currentMap.set(p.id, { ...(currentMap.get(p.id) || {}), ...p });
+      });
+      const merged = Array.from(currentMap.values());
+      localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(merged));
+      restoredCounts.peserta = merged.length;
+    }
+  }
+
+  // 2. KATEGORI
+  if (shouldRestore('kategori') && backup.data.kategori) {
+    if (mode === 'replace') {
+      localStorage.setItem(STORAGE_KEYS.KATEGORI, JSON.stringify(backup.data.kategori));
+      restoredCounts.kategori = backup.data.kategori.length;
+    } else {
+      const current = getKategori();
+      const currentMap = new Map(current.map(k => [k.idKategori, k]));
+      backup.data.kategori.forEach(k => currentMap.set(k.idKategori, { ...(currentMap.get(k.idKategori) || {}), ...k }));
+      const merged = Array.from(currentMap.values());
+      localStorage.setItem(STORAGE_KEYS.KATEGORI, JSON.stringify(merged));
+      restoredCounts.kategori = merged.length;
+    }
+  }
+
+  // 3. PROGRAM
+  if (shouldRestore('program') && backup.data.program) {
+    if (mode === 'replace') {
+      localStorage.setItem(STORAGE_KEYS.PROGRAM, JSON.stringify(backup.data.program));
+      restoredCounts.program = backup.data.program.length;
+    } else {
+      const current = getProgram();
+      const currentMap = new Map(current.map(pr => [pr.idProgram, pr]));
+      backup.data.program.forEach(pr => currentMap.set(pr.idProgram, { ...(currentMap.get(pr.idProgram) || {}), ...pr }));
+      const merged = Array.from(currentMap.values());
+      localStorage.setItem(STORAGE_KEYS.PROGRAM, JSON.stringify(merged));
+      restoredCounts.program = merged.length;
+    }
+  }
+
+  // 4. PIC
+  if (shouldRestore('pic') && backup.data.pic) {
+    if (mode === 'replace') {
+      localStorage.setItem(STORAGE_KEYS.PIC, JSON.stringify(backup.data.pic));
+      restoredCounts.pic = backup.data.pic.length;
+    } else {
+      const current = getPic();
+      const currentMap = new Map(current.map(pi => [pi.idPic, pi]));
+      backup.data.pic.forEach(pi => currentMap.set(pi.idPic, { ...(currentMap.get(pi.idPic) || {}), ...pi }));
+      const merged = Array.from(currentMap.values());
+      localStorage.setItem(STORAGE_KEYS.PIC, JSON.stringify(merged));
+      restoredCounts.pic = merged.length;
+    }
+  }
+
+  // 5. EDUVENTURE
+  if (shouldRestore('eduventure') && backup.data.eduventure) {
+    if (mode === 'replace') {
+      localStorage.setItem(STORAGE_KEYS.EDUVENTURE, JSON.stringify(backup.data.eduventure));
+      restoredCounts.eduventure = backup.data.eduventure.length;
+    } else {
+      const current = getEduventure();
+      const currentMap = new Map(current.map(e => [e.id, e]));
+      backup.data.eduventure.forEach(e => currentMap.set(e.id, { ...(currentMap.get(e.id) || {}), ...e }));
+      const merged = Array.from(currentMap.values());
+      localStorage.setItem(STORAGE_KEYS.EDUVENTURE, JSON.stringify(merged));
+      restoredCounts.eduventure = merged.length;
+    }
+  }
+
+  // 6. TEMPAT EDUVENTURE
+  if (shouldRestore('tempatEduventure') && backup.data.tempatEduventure) {
+    if (mode === 'replace') {
+      localStorage.setItem(STORAGE_KEYS.TEMPAT_EDUVENTURE, JSON.stringify(backup.data.tempatEduventure));
+      restoredCounts.tempatEduventure = backup.data.tempatEduventure.length;
+    } else {
+      const current = getTempatEduventure();
+      const merged = Array.from(new Set([...current, ...backup.data.tempatEduventure]));
+      localStorage.setItem(STORAGE_KEYS.TEMPAT_EDUVENTURE, JSON.stringify(merged));
+      restoredCounts.tempatEduventure = merged.length;
+    }
+  }
+
+  // 7. USERS
+  if (shouldRestore('users') && backup.data.users && backup.data.users.length > 0) {
+    const active = getCurrentUser();
+    let finalUsers = [...backup.data.users];
+
+    if (mode === 'merge') {
+      const current = getUsers();
+      const userMap = new Map(current.map(u => [u.userId, u]));
+      backup.data.users.forEach(u => userMap.set(u.userId, { ...(userMap.get(u.userId) || {}), ...u }));
+      finalUsers = Array.from(userMap.values());
+    }
+
+    if (keepSession && active) {
+      // Pastikan user aktif tetap ada di daftar users
+      const exists = finalUsers.find(u => u.userId === active.userId);
+      if (!exists) {
+        finalUsers.push(active);
+      }
+    }
+
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(finalUsers));
+    restoredCounts.users = finalUsers.length;
+  }
+
+  // 8. GROUPS
+  if (shouldRestore('groups') && backup.data.groups && backup.data.groups.length > 0) {
+    if (mode === 'replace') {
+      localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(backup.data.groups));
+      restoredCounts.groups = backup.data.groups.length;
+    } else {
+      const current = getGroups();
+      const groupMap = new Map(current.map(g => [g.id, g]));
+      backup.data.groups.forEach(g => groupMap.set(g.id, { ...(groupMap.get(g.id) || {}), ...g }));
+      const merged = Array.from(groupMap.values());
+      localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(merged));
+      restoredCounts.groups = merged.length;
+    }
+  }
+
+  // 9. MENUS
+  if (shouldRestore('menus') && backup.data.menus && backup.data.menus.length > 0) {
+    if (mode === 'replace') {
+      localStorage.setItem(STORAGE_KEYS.MENUS, JSON.stringify(backup.data.menus));
+      restoredCounts.menus = backup.data.menus.length;
+    } else {
+      const current = getAppMenus();
+      const menuMap = new Map(current.map(m => [m.id, m]));
+      backup.data.menus.forEach(m => menuMap.set(m.id, { ...(menuMap.get(m.id) || {}), ...m }));
+      const merged = Array.from(menuMap.values());
+      localStorage.setItem(STORAGE_KEYS.MENUS, JSON.stringify(merged));
+      restoredCounts.menus = merged.length;
+    }
+  }
+
+  // 10. LOGS
+  if (shouldRestore('logs') && backup.data.logs) {
+    if (mode === 'replace') {
+      localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify(backup.data.logs));
+      restoredCounts.logs = backup.data.logs.length;
+    } else {
+      const current = getLogs();
+      const logMap = new Map(current.map(l => [l.id, l]));
+      backup.data.logs.forEach(l => logMap.set(l.id, l));
+      const merged = Array.from(logMap.values());
+      localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify(merged));
+      restoredCounts.logs = merged.length;
+    }
+  }
+
+  // 11. SETTINGS
+  if (shouldRestore('settings') && backup.data.settings) {
+    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(backup.data.settings));
+    restoredCounts.settings = 1;
+  }
+
+  // 12. THEME
+  if (shouldRestore('theme') && backup.data.theme) {
+    setAppTheme(backup.data.theme);
+    restoredCounts.theme = 1;
+  }
+
+  writeLog(
+    'Restore Database',
+    'BACKUP_RESTORE',
+    'ALL',
+    `Pemulihan data sistem berhasil (Mode: ${mode === 'replace' ? 'Timpa Bersih' : 'Penggabungan/Merge'}, Berkas: ${backup.createdAt})`
+  );
+
+  return {
+    success: true,
+    message: `Data sistem berhasil dipulihkan dalam mode ${mode === 'replace' ? 'Timpa Bersih' : 'Penggabungan Cerdas'}.`,
+    details: { restoredCounts }
+  };
+}
+
+// ==========================================
+// LOCAL QUICK SNAPSHOT MANAGEMENT
+// ==========================================
+
+export function getSnapshots(): BackupSnapshotItem[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.SNAPSHOTS);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+export function createSafetySnapshot(
+  label: string, 
+  currentUser?: UserItem, 
+  isAutoSafety: boolean = false
+): BackupSnapshotItem {
+  const activeUser = currentUser || getCurrentUser();
+  const backupPayload = generateSystemBackup(activeUser, undefined, label);
+
+  const payloadString = JSON.stringify(backupPayload);
+  const sizeBytes = new Blob([payloadString]).size;
+  const now = new Date();
+  const id = `SNAP-${now.toISOString().replace(/[-:T.]/g, '').substring(0, 14)}`;
+
+  const totalRecords = 
+    backupPayload.summary.totalPeserta + 
+    backupPayload.summary.totalEduventure + 
+    backupPayload.summary.totalProgram + 
+    backupPayload.summary.totalUsers;
+
+  const newSnapshot: BackupSnapshotItem = {
+    id,
+    timestamp: now.toISOString(),
+    label: label || `Snapshot ${now.toLocaleString('id-ID')}`,
+    creatorName: activeUser.nama,
+    creatorRole: activeUser.role,
+    recordCount: totalRecords,
+    sizeBytes,
+    payload: backupPayload,
+    isAutoSafety
+  };
+
+  const existing = getSnapshots();
+  // Simpan maksimal 15 snapshot terbaru agar tidak memenuhi quota localStorage
+  const updated = [newSnapshot, ...existing].slice(0, 15);
+  localStorage.setItem(STORAGE_KEYS.SNAPSHOTS, JSON.stringify(updated));
+
+  writeLog(
+    'Buat Snapshot',
+    'BACKUP_RESTORE',
+    id,
+    `Membuat snapshot lokal "${newSnapshot.label}" (${totalRecords} entitas data)`
+  );
+
+  return newSnapshot;
+}
+
+export function restoreSnapshot(
+  snapshotId: string, 
+  currentUser?: UserItem
+): { success: boolean; message: string } {
+  const snapshots = getSnapshots();
+  const target = snapshots.find(s => s.id === snapshotId);
+
+  if (!target) {
+    return { success: false, message: 'Snapshot tidak ditemukan.' };
+  }
+
+  const result = restoreSystemBackup(target.payload, {
+    mode: 'replace',
+    keepActiveSession: true,
+    operatorUser: currentUser
+  });
+
+  if (result.success) {
+    writeLog(
+      'Rollback Snapshot',
+      'BACKUP_RESTORE',
+      snapshotId,
+      `Memulihkan kondisi database ke snapshot "${target.label}" (${target.timestamp})`
+    );
+    return { success: true, message: `Berhasil me-rollback sistem ke snapshot: "${target.label}".` };
+  }
+
+  return { success: false, message: result.message };
+}
+
+export function deleteSnapshot(snapshotId: string): { success: boolean; message: string } {
+  const snapshots = getSnapshots();
+  const filtered = snapshots.filter(s => s.id !== snapshotId);
+  localStorage.setItem(STORAGE_KEYS.SNAPSHOTS, JSON.stringify(filtered));
+  return { success: true, message: 'Snapshot berhasil dihapus.' };
+}
+
+export function clearAllSnapshots(): { success: boolean; message: string } {
+  localStorage.removeItem(STORAGE_KEYS.SNAPSHOTS);
+  return { success: true, message: 'Seluruh snapshot lokal telah dibersihkan.' };
+}
+
+export function getSystemStorageStats(): {
+  totalBytes: number;
+  formattedSize: string;
+  moduleStats: Record<string, { count: number; bytes: number }>;
+} {
+  const stats: Record<string, { count: number; bytes: number }> = {};
+  let total = 0;
+
+  const measure = (key: string, name: string, count: number) => {
+    const raw = localStorage.getItem(key) || '';
+    const bytes = new Blob([raw]).size;
+    total += bytes;
+    stats[name] = { count, bytes };
+  };
+
+  measure(STORAGE_KEYS.PESERTA, 'peserta', getPeserta().length);
+  measure(STORAGE_KEYS.EDUVENTURE, 'eduventure', getEduventure().length);
+  measure(STORAGE_KEYS.PROGRAM, 'program', getProgram().length);
+  measure(STORAGE_KEYS.KATEGORI, 'kategori', getKategori().length);
+  measure(STORAGE_KEYS.PIC, 'pic', getPic().length);
+  measure(STORAGE_KEYS.USERS, 'users', getUsers().length);
+  measure(STORAGE_KEYS.GROUPS, 'groups', getGroups().length);
+  measure(STORAGE_KEYS.MENUS, 'menus', getAppMenus().length);
+  measure(STORAGE_KEYS.LOGS, 'logs', getLogs().length);
+  measure(STORAGE_KEYS.SNAPSHOTS, 'snapshots', getSnapshots().length);
+
+  const formatted = total > 1048576 
+    ? `${(total / 1048576).toFixed(2)} MB` 
+    : `${(total / 1024).toFixed(1)} KB`;
+
+  return {
+    totalBytes: total,
+    formattedSize: formatted,
+    moduleStats: stats
+  };
+}
+
 

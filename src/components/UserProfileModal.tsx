@@ -1,16 +1,19 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { 
   User, Camera, Upload, Trash2, Check, X, Shield, Mail, 
   Phone, Building2, IdCard, Palette, Sparkles, CheckCircle2,
-  Clock, Lock, ShieldCheck, Sun, Moon
+  Clock, Lock, ShieldCheck, Sun, Moon, Key, Eye, EyeOff,
+  AlertCircle, ShieldAlert
 } from 'lucide-react';
 import { UserItem, AppThemeId } from '../types';
+import { changeUserPassword } from '../services/storageService';
 
 interface UserProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: UserItem;
   currentTheme: AppThemeId;
+  initialTab?: 'info' | 'password' | 'photo' | 'theme';
   onUpdateUser: (updatedUser: UserItem) => void;
   onThemeChange: (theme: AppThemeId) => void;
   onLogout: () => void;
@@ -71,11 +74,18 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   onClose,
   currentUser,
   currentTheme,
+  initialTab,
   onUpdateUser,
   onThemeChange,
   onLogout,
 }) => {
-  const [activeTab, setActiveTab] = useState<'info' | 'photo' | 'theme'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'password' | 'photo' | 'theme'>(initialTab || 'info');
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab, isOpen]);
 
   // Form states
   const [nama, setNama] = useState(currentUser.nama || '');
@@ -86,10 +96,112 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [photoUrl, setPhotoUrl] = useState(currentUser.photoUrl || '');
   const [previewPhoto, setPreviewPhoto] = useState(currentUser.photoUrl || '');
 
+  // Password change states
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  // Synchronize when modal reopens or user changes
+  useEffect(() => {
+    if (isOpen) {
+      setNama(currentUser.nama || '');
+      setEmail(currentUser.email || '');
+      setNip(currentUser.nip || '198005122005011002');
+      setTelepon(currentUser.telepon || '081223344556');
+      setUnitKerja(currentUser.unitKerja || 'Direktorat Pendidikan Non Gelar (DPNG) Unpad');
+      setPhotoUrl(currentUser.photoUrl || '');
+      setPreviewPhoto(currentUser.photoUrl || '');
+      // Reset password fields
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setPasswordError(null);
+      setPasswordSuccess(null);
+      setShowCurrentPassword(false);
+      setShowNewPassword(false);
+      setShowConfirmPassword(false);
+    }
+  }, [isOpen, currentUser]);
+
+  // Password strength calculator
+  const passwordStrength = useMemo(() => {
+    if (!newPassword) return { score: 0, label: 'Belum diisi', color: 'bg-slate-200', text: 'text-slate-400', width: 'w-0' };
+    let score = 0;
+    if (newPassword.length >= 6) score += 1;
+    if (newPassword.length >= 8) score += 1;
+    if (/[A-Z]/.test(newPassword) && /[a-z]/.test(newPassword)) score += 1;
+    if (/[0-9]/.test(newPassword)) score += 1;
+    if (/[^A-Za-z0-9]/.test(newPassword)) score += 1;
+
+    if (score <= 1) return { score: 1, label: 'Sangat Lemah', color: 'bg-rose-500', text: 'text-rose-600', width: 'w-1/4' };
+    if (score === 2) return { score: 2, label: 'Cukup', color: 'bg-amber-500', text: 'text-amber-600', width: 'w-2/4' };
+    if (score === 3 || score === 4) return { score: 3, label: 'Kuat', color: 'bg-blue-600', text: 'text-blue-600', width: 'w-3/4' };
+    return { score: 4, label: 'Sangat Kuat & Aman', color: 'bg-emerald-600', text: 'text-emerald-600', width: 'w-full' };
+  }, [newPassword]);
+
   const [savedSuccess, setSavedSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
+
+  // Handle Ubah Password Submit
+  const handleChangePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError(null);
+    setPasswordSuccess(null);
+
+    if (!currentPassword.trim()) {
+      setPasswordError('Silakan masukkan kata sandi saat ini (lama).');
+      return;
+    }
+
+    if (!newPassword.trim()) {
+      setPasswordError('Silakan masukkan kata sandi baru.');
+      return;
+    }
+
+    if (newPassword.trim().length < 6) {
+      setPasswordError('Kata sandi baru minimal harus 6 karakter.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Konfirmasi kata sandi baru tidak sesuai.');
+      return;
+    }
+
+    if (newPassword.trim() === currentPassword.trim()) {
+      setPasswordError('Kata sandi baru tidak boleh sama persis dengan kata sandi saat ini.');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const res = changeUserPassword(currentUser.userId, currentPassword.trim(), newPassword.trim());
+      if (res.success) {
+        setPasswordSuccess(res.message);
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        onUpdateUser({
+          ...currentUser,
+          password: newPassword.trim(),
+        });
+      } else {
+        setPasswordError(res.message);
+      }
+    } catch {
+      setPasswordError('Terjadi kesalahan internal saat memperbarui kata sandi.');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
 
   // Handle Photo File Upload
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -218,11 +330,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex border-b border-slate-200 bg-slate-50 px-6 pt-2 gap-2">
+        <div className="flex border-b border-slate-200 bg-slate-50 px-6 pt-2 gap-2 overflow-x-auto">
           <button
             type="button"
             onClick={() => setActiveTab('info')}
-            className={`px-4 py-2.5 text-xs font-bold border-b-2 flex items-center gap-2 cursor-pointer transition-all ${
+            className={`px-4 py-2.5 text-xs font-bold border-b-2 flex items-center gap-2 cursor-pointer transition-all whitespace-nowrap ${
               activeTab === 'info'
                 ? 'border-[#002B66] text-[#002B66] bg-white rounded-t-lg shadow-xs'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -233,8 +345,20 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab('password')}
+            className={`px-4 py-2.5 text-xs font-bold border-b-2 flex items-center gap-2 cursor-pointer transition-all whitespace-nowrap ${
+              activeTab === 'password'
+                ? 'border-[#002B66] text-[#002B66] bg-white rounded-t-lg shadow-xs'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Key className="w-4 h-4 text-amber-500" />
+            <span>Ubah Password</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab('photo')}
-            className={`px-4 py-2.5 text-xs font-bold border-b-2 flex items-center gap-2 cursor-pointer transition-all ${
+            className={`px-4 py-2.5 text-xs font-bold border-b-2 flex items-center gap-2 cursor-pointer transition-all whitespace-nowrap ${
               activeTab === 'photo'
                 ? 'border-[#002B66] text-[#002B66] bg-white rounded-t-lg shadow-xs'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -246,7 +370,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('theme')}
-            className={`px-4 py-2.5 text-xs font-bold border-b-2 flex items-center gap-2 cursor-pointer transition-all ${
+            className={`px-4 py-2.5 text-xs font-bold border-b-2 flex items-center gap-2 cursor-pointer transition-all whitespace-nowrap ${
               activeTab === 'theme'
                 ? 'border-[#002B66] text-[#002B66] bg-white rounded-t-lg shadow-xs'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -392,6 +516,219 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </button>
               </div>
             </form>
+          )}
+
+          {/* TAB: UBAH PASSWORD */}
+          {activeTab === 'password' && (
+            <div className="space-y-4">
+              {/* Informative Header Card */}
+              <div className="bg-gradient-to-r from-blue-50/80 via-indigo-50/50 to-amber-50/40 p-4 rounded-xl border border-blue-200/80 flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#002B66] text-[#FDB913] flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+                  <Key className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-xs font-bold text-[#002B66]">Keamanan Kata Sandi Akun</h4>
+                  <p className="text-[11px] text-slate-600 leading-relaxed mt-0.5">
+                    Ganti kata sandi secara berkala untuk melindungi akses data peserta dan transaksi keuangan SIMPENDIK Unpad.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2 mt-2 text-[10px] font-mono text-slate-600">
+                    <span className="bg-white/80 px-2 py-0.5 rounded border border-slate-200">
+                      ID: <strong className="text-slate-800">{currentUser.userId}</strong>
+                    </span>
+                    <span className="bg-white/80 px-2 py-0.5 rounded border border-slate-200">
+                      Email: <strong className="text-slate-800">{currentUser.email}</strong>
+                    </span>
+                    <span className="bg-white/80 px-2 py-0.5 rounded border border-slate-200">
+                      Role: <strong className="text-[#002B66]">{currentUser.role}</strong>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Alert Feedback Messages */}
+              {passwordError && (
+                <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-start gap-2.5 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <span className="font-bold block">Gagal Memperbarui Kata Sandi:</span>
+                    <span>{passwordError}</span>
+                  </div>
+                </div>
+              )}
+
+              {passwordSuccess && (
+                <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-start gap-2.5 animate-in fade-in">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <span className="font-bold block">Berhasil!</span>
+                    <span>{passwordSuccess}</span>
+                  </div>
+                </div>
+              )}
+
+              <form onSubmit={handleChangePasswordSubmit} className="space-y-4">
+                {/* 1. Kata Sandi Saat Ini */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Kata Sandi Saat Ini (Lama) <span className="text-rose-500">*</span>
+                    </label>
+                    <span className="text-[10px] text-slate-400">
+                      Default demo: <code className="bg-slate-100 px-1 py-0.2 rounded font-mono text-slate-600">{currentUser.role === 'ADMIN' ? 'admin123' : currentUser.role === 'OPERATOR' ? 'operator123' : 'viewer123'}</code>
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      value={currentPassword}
+                      onChange={(e) => {
+                        setCurrentPassword(e.target.value);
+                        if (passwordError) setPasswordError(null);
+                      }}
+                      required
+                      placeholder="Masukkan kata sandi saat ini..."
+                      className="w-full pl-9 pr-10 py-2.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#002B66] focus:border-transparent outline-none font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                      title={showCurrentPassword ? 'Sembunyikan Kata Sandi' : 'Tampilkan Kata Sandi'}
+                    >
+                      {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. Kata Sandi Baru */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Kata Sandi Baru <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Key className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => {
+                        setNewPassword(e.target.value);
+                        if (passwordError) setPasswordError(null);
+                      }}
+                      required
+                      placeholder="Masukkan kata sandi baru (minimal 6 karakter)..."
+                      className="w-full pl-9 pr-10 py-2.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#002B66] focus:border-transparent outline-none font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                      title={showNewPassword ? 'Sembunyikan Kata Sandi' : 'Tampilkan Kata Sandi'}
+                    >
+                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+
+                  {/* Password Strength Meter */}
+                  {newPassword && (
+                    <div className="mt-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1.5 animate-in fade-in">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-500 font-medium">Tingkat Kekuatan:</span>
+                        <span className={`font-bold ${passwordStrength.text}`}>
+                          {passwordStrength.label}
+                        </span>
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full transition-all duration-300 ${passwordStrength.color} ${passwordStrength.width}`}
+                        />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-[10px] text-slate-500">
+                        <span className={`flex items-center gap-1 ${newPassword.length >= 6 ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
+                          {newPassword.length >= 6 ? '✓' : '○'} Min. 6 karakter
+                        </span>
+                        <span className={`flex items-center gap-1 ${/[A-Za-z]/.test(newPassword) ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
+                          {/[A-Za-z]/.test(newPassword) ? '✓' : '○'} Mengandung huruf
+                        </span>
+                        <span className={`flex items-center gap-1 ${/[0-9]/.test(newPassword) ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
+                          {/[0-9]/.test(newPassword) ? '✓' : '○'} Mengandung angka (0-9)
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Konfirmasi Kata Sandi Baru */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Ulangi Kata Sandi Baru <span className="text-rose-500">*</span>
+                    </label>
+                    {confirmPassword && (
+                      <span className={`text-[10px] font-bold flex items-center gap-1 ${
+                        confirmPassword === newPassword ? 'text-emerald-600' : 'text-rose-500'
+                      }`}>
+                        {confirmPassword === newPassword ? (
+                          <>
+                            <Check className="w-3 h-3" /> Cocok
+                          </>
+                        ) : (
+                          <>
+                            <X className="w-3 h-3" /> Belum cocok
+                          </>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <Key className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        if (passwordError) setPasswordError(null);
+                      }}
+                      required
+                      placeholder="Ketik ulang kata sandi baru..."
+                      className={`w-full pl-9 pr-10 py-2.5 text-xs border rounded-lg focus:ring-2 focus:border-transparent outline-none font-mono ${
+                        confirmPassword && confirmPassword !== newPassword
+                          ? 'border-rose-300 focus:ring-rose-500 bg-rose-50/20'
+                          : confirmPassword && confirmPassword === newPassword
+                          ? 'border-emerald-300 focus:ring-emerald-500 bg-emerald-50/20'
+                          : 'border-slate-300 focus:ring-[#002B66]'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                      title={showConfirmPassword ? 'Sembunyikan Kata Sandi' : 'Tampilkan Kata Sandi'}
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isChangingPassword || !currentPassword || !newPassword || !confirmPassword}
+                    className="px-5 py-2 text-xs font-bold text-white bg-[#002B66] hover:bg-[#083a7e] disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Key className="w-4 h-4 text-[#FDB913]" />
+                    <span>{isChangingPassword ? 'Menyimpan...' : 'Simpan Kata Sandi Baru'}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
           )}
 
           {/* TAB 2: UPDATE PHOTO */}

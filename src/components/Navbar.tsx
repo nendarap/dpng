@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Menu, Shield, Database, RefreshCw, FileCode, CheckCircle2, 
-  UserCheck, LogOut, User, Camera, Palette, ChevronDown, Sparkles
+  UserCheck, LogOut, User, Camera, Palette, ChevronDown, Sparkles, Key
 } from 'lucide-react';
 import { UserItem, UserRole, GroupAkun, AppThemeId } from '../types';
 import { UnpadLogo } from './UnpadLogo';
@@ -34,6 +34,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onThemeChange = () => {},
 }) => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [profileModalTab, setProfileModalTab] = useState<'info' | 'password' | 'photo' | 'theme'>('info');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   // Hanya Admin Utama yang dapat melihat Google Sheets Database, Source Code GAS, dan Pilihan Group
@@ -198,6 +199,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <button
                         type="button"
                         onClick={() => {
+                          setProfileModalTab('info');
                           setIsDropdownOpen(false);
                           setIsProfileModalOpen(true);
                         }}
@@ -210,6 +212,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <button
                         type="button"
                         onClick={() => {
+                          setProfileModalTab('password');
+                          setIsDropdownOpen(false);
+                          setIsProfileModalOpen(true);
+                        }}
+                        className="w-full px-3 py-2 text-xs font-semibold text-slate-700 hover:text-[#002B66] hover:bg-slate-50 rounded-lg flex items-center gap-2.5 transition-colors cursor-pointer"
+                      >
+                        <Key className="w-4 h-4 text-amber-500" />
+                        <div className="flex items-center justify-between flex-1">
+                          <span>Ubah Password Akun</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 font-bold border border-amber-200">
+                            Keamanan
+                          </span>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProfileModalTab('photo');
                           setIsDropdownOpen(false);
                           setIsProfileModalOpen(true);
                         }}
@@ -222,6 +243,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <button
                         type="button"
                         onClick={() => {
+                          setProfileModalTab('theme');
                           setIsDropdownOpen(false);
                           setIsProfileModalOpen(true);
                         }}
@@ -275,6 +297,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         onClose={() => setIsProfileModalOpen(false)}
         currentUser={currentUser}
         currentTheme={currentTheme}
+        initialTab={profileModalTab}
         onUpdateUser={onUpdateUser}
         onThemeChange={onThemeChange}
         onLogout={onLogout}

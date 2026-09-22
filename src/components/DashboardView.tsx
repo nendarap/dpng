@@ -2,9 +2,9 @@ import React, { useState, useMemo } from 'react';
 import { 
   Users, UserCheck, Clock, Award, XCircle, 
   GraduationCap, Layers, Calendar, Filter, RotateCcw,
-  Building2, MapPin, ArrowUpRight, Map
+  Building2, MapPin, ArrowUpRight, Map, Compass, ChevronRight
 } from 'lucide-react';
-import { Peserta, Kategori, Program, LogAktivitas } from '../types';
+import { Peserta, Kategori, Program, LogAktivitas, EduventureBooking } from '../types';
 import { UnpadLogo } from './UnpadLogo';
 
 interface DashboardViewProps {
@@ -12,9 +12,12 @@ interface DashboardViewProps {
   kategoriList: Kategori[];
   programList: Program[];
   recentLogs: LogAktivitas[];
+  eduventureList?: EduventureBooking[];
   onNavigateToPeserta: (filter?: Partial<Peserta>) => void;
   onNavigateToTambah: () => void;
   onNavigateToMap?: () => void;
+  onNavigateToEduventure?: (targetTab?: 'eduventure' | 'eduventure_dashboard') => void;
+  onNavigateToKategori?: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -22,9 +25,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   kategoriList,
   programList,
   recentLogs,
+  eduventureList = [],
   onNavigateToPeserta,
   onNavigateToTambah,
   onNavigateToMap,
+  onNavigateToEduventure,
+  onNavigateToKategori,
 }) => {
   // Filter state
   const [filterTahun, setFilterTahun] = useState<string>('ALL');
@@ -141,6 +147,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const maxKategoriCount = Math.max(...kategoriStats.map(k => k.count), 1);
   const maxInstansiCount = Math.max(...topInstansi.map(i => i.count), 1);
 
+  // Eduventure metrics summary for linked display
+  const eduventureSummary = useMemo(() => {
+    const totalVisits = eduventureList.length;
+    const totalParticipants = eduventureList.reduce(
+      (sum, b) => sum + (Number(b.jumlahPeserta) || 0) + (Number(b.jumlahGuru) || 0), 
+      0
+    );
+    const paidVisits = eduventureList.filter(b => b.statusPembayaran === 'Lunas').length;
+    return { totalVisits, totalParticipants, paidVisits };
+  }, [eduventureList]);
+
   return (
     <div className="space-y-6 pb-12">
       {/* Header with Title & Quick Action */}
@@ -160,7 +177,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+          {onNavigateToEduventure && (
+            <button
+              id="btn-quick-eduventure"
+              type="button"
+              onClick={() => onNavigateToEduventure('eduventure')}
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-[#002B66] font-bold rounded-lg text-xs border border-indigo-200 shadow-xs transition-colors cursor-pointer"
+              title="Buka Modul Eduventure (Agenda Kunjungan & VA)"
+            >
+              <Compass className="w-4 h-4 text-indigo-700" />
+              <span>Modul Eduventure</span>
+            </button>
+          )}
           {onNavigateToMap && (
             <button
               id="btn-quick-map"

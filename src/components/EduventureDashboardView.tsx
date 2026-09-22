@@ -9,13 +9,14 @@ import {
 } from 'lucide-react';
 import { EduventureBooking, UserRole } from '../types';
 import { UnpadLogo } from './UnpadLogo';
+import { EduventureMapView } from './EduventureMapView';
 
 interface EduventureDashboardViewProps {
   eduventureList: EduventureBooking[];
   onSelectBooking: (item: EduventureBooking) => void;
   onEditBooking: (item: EduventureBooking) => void;
   onAddNewBooking: () => void;
-  onSwitchViewMode: (mode: 'card' | 'table' | 'calendar') => void;
+  onSwitchViewMode: (mode: 'card' | 'table' | 'calendar' | 'map') => void;
   onExportCSV: () => void;
   userRole: UserRole;
 }
@@ -29,6 +30,9 @@ export const EduventureDashboardView: React.FC<EduventureDashboardViewProps> = (
   onExportCSV,
   userRole,
 }) => {
+  // Active Tab: All, Analytics, or Map
+  const [dashboardTab, setDashboardTab] = useState<'all' | 'analytics' | 'map'>('all');
+
   // Filter States
   const [filterTahun, setFilterTahun] = useState<string>('ALL');
   const [filterSkema, setFilterSkema] = useState<string>('ALL');
@@ -326,6 +330,21 @@ export const EduventureDashboardView: React.FC<EduventureDashboardViewProps> = (
             </button>
 
             <button
+              id="btn-dash-open-peta"
+              type="button"
+              onClick={() => {
+                setDashboardTab('map');
+                const el = document.getElementById('section-eduventure-map');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md hover:shadow-lg transition-all duration-150 transform hover:-translate-y-0.5 border border-emerald-500/40 cursor-pointer"
+              title="Buka Peta Sebaran Eduventure"
+            >
+              <MapPin className="w-4 h-4 text-emerald-200" />
+              <span>Peta Eduventure</span>
+            </button>
+
+            <button
               id="btn-dash-open-table"
               type="button"
               onClick={() => onSwitchViewMode('table')}
@@ -453,8 +472,67 @@ export const EduventureDashboardView: React.FC<EduventureDashboardViewProps> = (
         </div>
       </div>
 
-      {/* 2. Top Executive KPI Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Sub-View Navigation Switcher (All / Analytics / Map) */}
+      <div className="flex items-center justify-between flex-wrap gap-3 bg-white p-2.5 rounded-2xl border border-slate-200/80 shadow-xs">
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-xl text-xs font-semibold text-slate-600">
+          <button
+            type="button"
+            onClick={() => setDashboardTab('all')}
+            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+              dashboardTab === 'all'
+                ? 'bg-white text-[#002B66] font-bold shadow-xs'
+                : 'hover:text-slate-900'
+            }`}
+          >
+            📊 Semua (Ringkasan & Peta)
+          </button>
+          <button
+            type="button"
+            onClick={() => setDashboardTab('analytics')}
+            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+              dashboardTab === 'analytics'
+                ? 'bg-white text-[#002B66] font-bold shadow-xs'
+                : 'hover:text-slate-900'
+            }`}
+          >
+            📈 Analitik & Statistik
+          </button>
+          <button
+            type="button"
+            id="btn-subtab-map"
+            onClick={() => setDashboardTab('map')}
+            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+              dashboardTab === 'map'
+                ? 'bg-white text-[#002B66] font-bold shadow-xs'
+                : 'hover:text-slate-900'
+            }`}
+          >
+            🗺️ Peta Geografis Eduventure
+          </button>
+        </div>
+
+        <div className="text-xs text-slate-500 flex items-center gap-2 pr-2">
+          <span className="font-semibold text-slate-700">{filteredList.length}</span> Agenda Terpilih ({stats.totalPartisipan.toLocaleString('id-ID')} Siswa & Guru)
+        </div>
+      </div>
+
+      {/* When in Map-Only Focus Mode */}
+      {dashboardTab === 'map' && (
+        <section id="section-eduventure-map" className="animate-in fade-in duration-200">
+          <EduventureMapView
+            eduventureList={filteredList}
+            onSelectBooking={onSelectBooking}
+            userRole={userRole}
+            isEmbedded={true}
+          />
+        </section>
+      )}
+
+      {/* Analytics KPI Stat Cards (Rendered if 'all' or 'analytics') */}
+      {dashboardTab !== 'map' && (
+        <>
+          {/* 2. Top Executive KPI Stat Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Total Kunjungan Sekolah */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow relative overflow-hidden">
           <div className="flex items-center justify-between mb-3">
@@ -702,6 +780,18 @@ export const EduventureDashboardView: React.FC<EduventureDashboardViewProps> = (
           </div>
         </div>
       </div>
+
+      {/* Embedded Map Section (Shown in 'all' view mode) */}
+      {dashboardTab === 'all' && (
+        <section id="section-eduventure-map" className="space-y-2 pt-2 animate-in fade-in duration-200">
+          <EduventureMapView
+            eduventureList={filteredList}
+            onSelectBooking={onSelectBooking}
+            userRole={userRole}
+            isEmbedded={true}
+          />
+        </section>
+      )}
 
       {/* 4. Secondary Analytics Row: Venue Utilization & Virtual Account Reconciliation */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -973,6 +1063,8 @@ export const EduventureDashboardView: React.FC<EduventureDashboardViewProps> = (
           </div>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 };

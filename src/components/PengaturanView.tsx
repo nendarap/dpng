@@ -1,18 +1,21 @@
 import React, { useState } from 'react';
 import { 
   Settings, Save, Database, RefreshCw, CheckCircle2, 
-  AlertTriangle, Shield, Globe, FileCode, Sliders, Image as ImageIcon
+  AlertTriangle, Shield, Globe, FileCode, Sliders, Image as ImageIcon,
+  DatabaseBackup, Download
 } from 'lucide-react';
 import { SettingApp, LoginSettings } from '../types';
 import { UnpadLogo } from './UnpadLogo';
 import { LoginSettingsTab } from './LoginSettingsTab';
 import { DEFAULT_LOGIN_SETTINGS } from '../data/loginPresets';
+import { generateSystemBackup } from '../services/storageService';
 
 interface PengaturanViewProps {
   settings: SettingApp;
   onSaveSettings: (settings: SettingApp) => void;
   onResetDatabase: () => void;
   onOpenGasModal: () => void;
+  onNavigateToBackupRestore?: () => void;
   isAdmin?: boolean;
 }
 
@@ -21,6 +24,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
   onSaveSettings,
   onResetDatabase,
   onOpenGasModal,
+  onNavigateToBackupRestore,
   isAdmin = true,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'system' | 'login'>('system');
@@ -288,6 +292,56 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                 {testResult.message}
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Backup & Restore Data Database Section */}
+        <div className="bg-blue-50/60 p-5 rounded-xl border border-blue-200/80 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-[#002B66] font-bold">
+              <DatabaseBackup className="w-5 h-5 text-[#002B66]" />
+              <span>Pencadangan & Pemulihan Database (Backup & Restore)</span>
+            </div>
+            <span className="text-[10px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+              Proteksi Data
+            </span>
+          </div>
+
+          <p className="text-slate-600 text-xs leading-relaxed">
+            Amankan seluruh data peserta, program, kategori, pengguna, hak akses, dan log aktivitas ke dalam berkas JSON terenkripsi, atau pulihkan data dari berkas cadangan sebelumnya.
+          </p>
+
+          <div className="flex flex-wrap items-center gap-2.5 pt-1">
+            {onNavigateToBackupRestore && (
+              <button
+                type="button"
+                onClick={onNavigateToBackupRestore}
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#002B66] hover:bg-[#083a7e] text-white font-bold rounded-lg text-xs shadow-xs transition-colors cursor-pointer"
+              >
+                <DatabaseBackup className="w-4 h-4 text-[#FDB913]" />
+                <span>Buka Pusat Backup & Restore Data</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                const payload = generateSystemBackup();
+                const jsonStr = JSON.stringify(payload, null, 2);
+                const blob = new Blob([jsonStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                const dateStr = new Date().toISOString().replace(/[-:T]/g, '').substring(0, 14);
+                link.href = url;
+                link.download = `simpendik-unpad-backup-${dateStr}.json`;
+                link.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-semibold rounded-lg text-xs shadow-xs transition-colors cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5 text-slate-500" />
+              <span>Unduh Cadangan Cepat (.json)</span>
+            </button>
           </div>
         </div>
 

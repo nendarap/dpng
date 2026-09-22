@@ -178,6 +178,7 @@ export type AppMenuId =
   | 'log' 
   | 'setting' 
   | 'gas_code'
+  | 'backup_restore'
   | (string & {});
 
 export type MenuActionKey = 'canAccess' | 'canCreate' | 'canEdit' | 'canDelete' | 'canExport';
@@ -307,3 +308,62 @@ export interface AdvancedSearchFilter {
   tanggalSelesaiEnd: string;
   nomorSertifikat: string;
 }
+
+export interface SimpendikBackupSummary {
+  totalPeserta: number;
+  totalKategori: number;
+  totalProgram: number;
+  totalPic: number;
+  totalEduventure: number;
+  totalTempatEduventure: number;
+  totalUsers: number;
+  totalGroups: number;
+  totalMenus: number;
+  totalLogs: number;
+}
+
+export interface SimpendikBackupData {
+  peserta: Peserta[];
+  kategori: Kategori[];
+  program: Program[];
+  pic: PicProgram[];
+  eduventure: EduventureBooking[];
+  tempatEduventure?: string[];
+  users?: UserItem[];
+  groups?: GroupAkun[];
+  menus?: AppMenuItemDef[];
+  logs?: LogAktivitas[];
+  settings?: SettingApp;
+  theme?: AppThemeId;
+}
+
+export interface SimpendikBackupPayload {
+  version: string;
+  app: string;
+  createdAt: string;
+  createdBy: {
+    userId: string;
+    nama: string;
+    email: string;
+    role: string;
+  };
+  summary: SimpendikBackupSummary;
+  data: SimpendikBackupData;
+  checksum?: string;
+  description?: string;
+}
+
+export type RestoreMode = 'replace' | 'merge';
+
+export interface BackupSnapshotItem {
+  id: string;
+  timestamp: string;
+  label: string;
+  creatorName: string;
+  creatorRole: string;
+  recordCount: number;
+  sizeBytes: number;
+  payload: SimpendikBackupPayload;
+  isAutoSafety?: boolean;
+}
+

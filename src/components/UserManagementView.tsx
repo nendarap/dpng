@@ -11,7 +11,7 @@ import { UserItem, UserRole, GroupAkun, MenuPrivilege, AppMenuId, MenuActionKey 
 import { APP_MENU_DEFINITIONS, getEffectivePrivilege, DEFAULT_GROUPS } from '../data/privilegeData';
 import { 
   getGroups, saveGroup, deleteGroup, saveAllGroupPrivileges, 
-  resetPrivilegesToDefaults, saveUser, writeLog 
+  resetPrivilegesToDefaults, saveUser, writeLog, adminResetUserPassword 
 } from '../services/storageService';
 import { MenuManagementView } from './MenuManagementView';
 
@@ -94,8 +94,17 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const [userFormEmail, setUserFormEmail] = useState('');
   const [userFormNama, setUserFormNama] = useState('');
   const [userFormPassword, setUserFormPassword] = useState('');
+  const [showUserFormPasswordText, setShowUserFormPasswordText] = useState(false);
   const [userFormGroupId, setUserFormGroupId] = useState<string>('OPERATOR');
   const [userFormStatusAktif, setUserFormStatusAktif] = useState<'Ya' | 'Tidak'>('Ya');
+
+  // Admin Reset Password Modal
+  const [resetPasswordModalOpen, setResetPasswordModalOpen] = useState(false);
+  const [resetTargetUser, setResetTargetUser] = useState<UserItem | null>(null);
+  const [resetNewPassword, setResetNewPassword] = useState('unpad123');
+  const [showResetPasswordText, setShowResetPasswordText] = useState(false);
+  const [resetPasswordStatus, setResetPasswordStatus] = useState<{ success: boolean; message: string } | null>(null);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   // Group Add/Edit Modal
   const [groupModalOpen, setGroupModalOpen] = useState(false);
@@ -301,6 +310,64 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     onSaveUser(payload);
     setUserModalOpen(false);
     showNotification(`Data pengguna ${payload.nama} berhasil disimpan dengan Group "${payload.namaGroup}"!`);
+  };
+
+  // Admin Reset Password Handlers
+  const handleOpenResetPassword = (u: UserItem) => {
+    setResetTargetUser(u);
+    setResetNewPassword('unpad123');
+    setShowResetPasswordText(true);
+    setResetPasswordStatus(null);
+    setResetPasswordModalOpen(true);
+  };
+
+  const handleAdminResetPasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetTargetUser) return;
+
+    if (!resetNewPassword.trim()) {
+      setResetPasswordStatus({ success: false, message: 'Kata sandi baru tidak boleh kosong.' });
+      return;
+    }
+
+    if (resetNewPassword.trim().length < 6) {
+      setResetPasswordStatus({ success: false, message: 'Kata sandi baru minimal harus 6 karakter.' });
+      return;
+    }
+
+    setIsResettingPassword(true);
+    try {
+      const res = adminResetUserPassword(currentUser.userId, resetTargetUser.userId, resetNewPassword.trim());
+      if (res.success) {
+        setResetPasswordStatus({ success: true, message: res.message });
+        const updated = {
+          ...resetTargetUser,
+          password: resetNewPassword.trim(),
+        };
+        onSaveUser(updated);
+        showNotification(`Kata sandi akun ${resetTargetUser.nama} berhasil direset.`);
+        setTimeout(() => {
+          setResetPasswordModalOpen(false);
+          setIsResettingPassword(false);
+        }, 1200);
+      } else {
+        setResetPasswordStatus({ success: false, message: res.message });
+        setIsResettingPassword(false);
+      }
+    } catch {
+      setResetPasswordStatus({ success: false, message: 'Gagal mereset kata sandi. Silakan coba lagi.' });
+      setIsResettingPassword(false);
+    }
+  };
+
+  const handleGenerateRandomPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
+    let rand = '';
+    for (let i = 0; i < 8; i++) {
+      rand += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setResetNewPassword(rand);
+    setShowResetPasswordText(true);
   };
 
   const handleQuickAssignGroup = (user: UserItem, newGroupId: string) => {
@@ -1121,6 +1188,16 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                                 <Eye className="w-4 h-4" />
                               </button>
 
+                              {/* Reset Password Button */}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenResetPassword(u)}
+                                className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded"
+                                title="Reset Kata Sandi Akun Pengguna Ini"
+                              >
+                                <Key className="w-4 h-4" />
+                              </button>
+
                               <button
                                 type="button"
                                 onClick={() => handleOpenEditUser(u)}
@@ -1205,16 +1282,54 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Kata Sandi (Password) <span className="text-xs text-slate-400 font-normal">(Default: unpad123)</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="Masukkan kata sandi login..."
-                  value={userFormPassword}
-                  onChange={(e) => setUserFormPassword(e.target.value)}
-                  className="w-full p-2.5 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white font-medium"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-bold text-slate-700">
+                    Kata Sandi (Password) <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUserFormPassword('unpad123');
+                        setShowUserFormPasswordText(true);
+                      }}
+                      className="text-[10px] text-blue-600 hover:underline font-semibold cursor-pointer"
+                    >
+                      Default: unpad123
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#';
+                        let r = '';
+                        for (let i = 0; i < 8; i++) r += chars.charAt(Math.floor(Math.random() * chars.length));
+                        setUserFormPassword(r);
+                        setShowUserFormPasswordText(true);
+                      }}
+                      className="text-[10px] text-amber-600 hover:underline font-semibold cursor-pointer"
+                    >
+                      Acak Sandi
+                    </button>
+                  </div>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showUserFormPasswordText ? 'text' : 'password'}
+                    placeholder="Masukkan kata sandi login (min. 6 karakter)..."
+                    value={userFormPassword}
+                    onChange={(e) => setUserFormPassword(e.target.value)}
+                    required
+                    className="w-full pl-3 pr-10 py-2.5 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white font-mono text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowUserFormPasswordText(!showUserFormPasswordText)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                  >
+                    {showUserFormPasswordText ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <div>
@@ -1262,6 +1377,131 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   className="px-4 py-2 bg-[#002B66] hover:bg-[#083a7e] text-white font-bold rounded-lg shadow-xs cursor-pointer"
                 >
                   Simpan Pengguna
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADMIN RESET PASSWORD */}
+      {resetPasswordModalOpen && resetTargetUser && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
+                  <Key className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-[#002B66]">Reset Kata Sandi Akun</h2>
+                  <p className="text-xs text-slate-500">Atur ulang kata sandi login pengguna secara instan</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setResetPasswordModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Target User Info */}
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl mb-4 space-y-1 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Nama Pengguna:</span>
+                <span className="font-bold text-slate-800">{resetTargetUser.nama}</span>
+              </div>
+              <div className="flex items-center justify-between font-mono">
+                <span className="text-slate-500 font-sans">Email:</span>
+                <span className="text-slate-700">{resetTargetUser.email}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Group / Role:</span>
+                <span className="font-semibold text-[#002B66]">{resetTargetUser.namaGroup || resetTargetUser.role}</span>
+              </div>
+            </div>
+
+            {resetPasswordStatus && (
+              <div className={`p-3 rounded-xl text-xs mb-4 flex items-start gap-2 ${
+                resetPasswordStatus.success 
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
+                  : 'bg-rose-50 text-rose-800 border border-rose-200'
+              }`}>
+                {resetPasswordStatus.success ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                )}
+                <span>{resetPasswordStatus.message}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleAdminResetPasswordSubmit} className="space-y-4 text-xs">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-bold text-slate-700">
+                    Kata Sandi Baru <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResetNewPassword('unpad123');
+                        setShowResetPasswordText(true);
+                      }}
+                      className="text-[10px] text-blue-600 hover:underline font-semibold cursor-pointer"
+                    >
+                      unpad123
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      onClick={handleGenerateRandomPassword}
+                      className="text-[10px] text-amber-600 hover:underline font-semibold cursor-pointer"
+                    >
+                      Acak Sandi
+                    </button>
+                  </div>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showResetPasswordText ? 'text' : 'password'}
+                    required
+                    placeholder="Masukkan minimal 6 karakter..."
+                    value={resetNewPassword}
+                    onChange={(e) => setResetNewPassword(e.target.value)}
+                    className="w-full pl-3 pr-10 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#002B66] outline-none font-mono text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowResetPasswordText(!showResetPasswordText)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                  >
+                    {showResetPasswordText ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Pengguna dapat menggunakan kata sandi ini untuk login dan dapat mengubahnya sendiri sewaktu-waktu di menu profil.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setResetPasswordModalOpen(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isResettingPassword || !resetNewPassword.trim()}
+                  className="px-4 py-2 bg-[#002B66] hover:bg-[#083a7e] disabled:opacity-50 text-white font-bold rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Key className="w-4 h-4 text-[#FDB913]" />
+                  <span>{isResettingPassword ? 'Mereset...' : 'Terapkan Reset Sandi'}</span>
                 </button>
               </div>
             </form>

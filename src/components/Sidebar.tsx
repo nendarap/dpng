@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, UserPlus, Layers, GraduationCap, 
   Search, FileSpreadsheet, Download, BarChart3, ShieldCheck, 
   History, Settings, Code, X, LogOut, Map, UserCheck, Compass,
-  SlidersHorizontal, Shield, ChevronRight
+  SlidersHorizontal, Shield, ChevronRight, DatabaseBackup
 } from 'lucide-react';
 import { UserRole, GroupAkun, UserItem, AppMenuId, AppMenuItemDef, AppThemeId } from '../types';
 import { hasMenuAccess } from '../data/privilegeData';
@@ -28,7 +28,8 @@ export type ActiveTab =
   | 'menu_manage'
   | 'log' 
   | 'setting' 
-  | 'gas_code';
+  | 'gas_code'
+  | 'backup_restore';
 
 interface SidebarProps {
   activeTab: ActiveTab;
@@ -61,6 +62,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   log: History,
   setting: Settings,
   gas_code: Code,
+  backup_restore: DatabaseBackup,
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -110,7 +112,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
     if (userRole === 'ADMIN') return true;
     if (userRole === 'OPERATOR') {
-      return ['dashboard', 'eduventure_dashboard', 'map_dashboard', 'kategori', 'program', 'pic', 'peserta', 'tambah', 'eduventure', 'search', 'statistik', 'export', 'log', 'gas_code'].includes(itemId);
+      return ['dashboard', 'eduventure_dashboard', 'map_dashboard', 'kategori', 'program', 'pic', 'peserta', 'tambah', 'eduventure', 'search', 'statistik', 'export', 'log', 'gas_code', 'backup_restore'].includes(itemId);
     }
     if (userRole === 'VIEWER') {
       return ['dashboard', 'eduventure_dashboard', 'map_dashboard', 'kategori', 'program', 'pic', 'peserta', 'eduventure', 'search', 'statistik', 'export', 'gas_code'].includes(itemId);

@@ -159,6 +159,16 @@ export const APP_MENU_DEFINITIONS: AppMenuItemDef[] = [
     aktif: true,
     iconName: 'Code',
     supportedActions: { canCreate: false, canEdit: false, canDelete: false, canExport: true }
+  },
+  {
+    id: 'backup_restore',
+    label: 'Backup & Restore Data',
+    kategoriModul: 'Administrasi Sistem',
+    deskripsi: 'Pencadangan seluruh database sistem ke berkas JSON terverifikasi, pembuatan snapshot instan, dan pemulihan data aman.',
+    urutan: 18,
+    aktif: true,
+    iconName: 'DatabaseBackup',
+    supportedActions: { canCreate: true, canEdit: true, canDelete: true, canExport: true }
   }
 ];
 
@@ -199,7 +209,8 @@ export const OPERATOR_PRIVILEGES: Record<string, MenuPrivilege> = {
   menu_manage: { canAccess: false, canCreate: false, canEdit: false, canDelete: false, canExport: false },
   log: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
   setting: { canAccess: false, canCreate: false, canEdit: false, canDelete: false, canExport: false },
-  gas_code: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: false }
+  gas_code: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: false },
+  backup_restore: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true }
 };
 
 // 3. VIEWER (Pengawas / Pimpinan Unpad) - Read-only
@@ -221,7 +232,8 @@ export const VIEWER_PRIVILEGES: Record<string, MenuPrivilege> = {
   menu_manage: { canAccess: false, canCreate: false, canEdit: false, canDelete: false, canExport: false },
   log: { canAccess: false, canCreate: false, canEdit: false, canDelete: false, canExport: false },
   setting: { canAccess: false, canCreate: false, canEdit: false, canDelete: false, canExport: false },
-  gas_code: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: false }
+  gas_code: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: false },
+  backup_restore: { canAccess: false, canCreate: false, canEdit: false, canDelete: false, canExport: false }
 };
 
 // 4. KEUANGAN (Verifikator Keuangan & Rekening Eduventure)
@@ -243,7 +255,8 @@ export const KEUANGAN_PRIVILEGES: Record<string, MenuPrivilege> = {
   menu_manage: { canAccess: false, canCreate: false, canEdit: false, canDelete: false, canExport: false },
   log: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
   setting: { canAccess: false, canCreate: false, canEdit: false, canDelete: false, canExport: false },
-  gas_code: { canAccess: false, canCreate: false, canEdit: false, canDelete: false, canExport: false }
+  gas_code: { canAccess: false, canCreate: false, canEdit: false, canDelete: false, canExport: false },
+  backup_restore: { canAccess: false, canCreate: false, canEdit: false, canDelete: false, canExport: false }
 };
 
 // 5. KOORDINATOR_PROGRAM (Koordinator Pelatihan & PIC)
@@ -264,7 +277,8 @@ export const KOORDINATOR_PRIVILEGES: Record<string, MenuPrivilege> = {
   menu_manage: { canAccess: false, canCreate: false, canEdit: false, canDelete: false, canExport: false },
   log: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: false },
   setting: { canAccess: false, canCreate: false, canEdit: false, canDelete: false, canExport: false },
-  gas_code: { canAccess: false, canCreate: false, canEdit: false, canDelete: false, canExport: false }
+  gas_code: { canAccess: false, canCreate: false, canEdit: false, canDelete: false, canExport: false },
+  backup_restore: { canAccess: false, canCreate: false, canEdit: false, canDelete: false, canExport: false }
 };
 
 export const ROLE_PRESET_MAP: Record<string, Record<string, MenuPrivilege>> = {

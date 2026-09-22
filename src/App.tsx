@@ -19,6 +19,7 @@ import { GasSourceModal } from './components/GasSourceModal';
 import { LoginView } from './components/LoginView';
 import { MapDashboardView } from './components/MapDashboardView';
 import { EduventureView } from './components/EduventureView';
+import { BackupRestoreView } from './components/BackupRestoreView';
 
 import { 
   Peserta, Kategori, Program, PicProgram, UserItem, LogAktivitas, SettingApp, UserRole,
@@ -658,7 +659,18 @@ export default function App() {
                   onSaveSettings={handleSaveSettings}
                   onResetDatabase={handleResetDatabase}
                   onOpenGasModal={() => setIsGasModalOpen(true)}
+                  onNavigateToBackupRestore={() => setActiveTab('backup_restore')}
                   isAdmin={currentUser.role === 'ADMIN'}
+                />
+              )}
+
+              {activeTab === 'backup_restore' && (
+                <BackupRestoreView
+                  currentUser={currentUser}
+                  groups={groups}
+                  onDataRestored={refreshAllData}
+                  showToast={showToast}
+                  onNavigateTab={(tab) => setActiveTab(tab)}
                 />
               )}
             </>
