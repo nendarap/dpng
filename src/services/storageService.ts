@@ -476,7 +476,7 @@ export function getSettings(): SettingApp {
   if (!raw) return DEFAULT_SETTING;
   try {
     const parsed = JSON.parse(raw);
-    return {
+    const result: SettingApp = {
       ...DEFAULT_SETTING,
       ...parsed,
       loginSettings: {
@@ -484,6 +484,13 @@ export function getSettings(): SettingApp {
         ...(parsed.loginSettings || {}),
       },
     };
+    // Migrasi otomatis jika masih menggunakan ID lama atau kosong
+    if (!result.spreadsheetId || result.spreadsheetId === '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms') {
+      result.spreadsheetId = DEFAULT_SETTING.spreadsheetId;
+      result.sheetUrl = DEFAULT_SETTING.sheetUrl;
+      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(result));
+    }
+    return result;
   } catch (e) {
     return DEFAULT_SETTING;
   }

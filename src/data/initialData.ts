@@ -223,7 +223,8 @@ export const DEFAULT_SETTING: SettingApp = {
   tahunDefault: 2026,
   paginationDefault: 10,
   whitelistDomain: '@unpad.ac.id',
-  spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+  spreadsheetId: '1sf36XFR19fAfZ5L-A4jr5TgueRodze__cuoLm-kYvCA',
+  sheetUrl: 'https://docs.google.com/spreadsheets/d/1sf36XFR19fAfZ5L-A4jr5TgueRodze__cuoLm-kYvCA/edit',
   webAppUrl: '',
   modeKoneksi: 'local_sheet',
   loginSettings: DEFAULT_LOGIN_SETTINGS

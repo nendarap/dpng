@@ -230,7 +230,7 @@ export const GoogleSheetConnectionModal: React.FC<GoogleSheetConnectionModalProp
                   type="text"
                   value={sheetInput}
                   onChange={(e) => setSheetInput(e.target.value)}
-                  placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
+                  placeholder="https://docs.google.com/spreadsheets/d/1sf36XFR19fAfZ5L-A4jr5TgueRodze__cuoLm-kYvCA/edit"
                   className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-200 bg-white font-mono text-xs focus:ring-2 focus:ring-[#002B66] focus:outline-none"
                 />
               </div>

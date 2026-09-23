@@ -268,7 +268,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
+                  placeholder="https://docs.google.com/spreadsheets/d/1sf36XFR19fAfZ5L-A4jr5TgueRodze__cuoLm-kYvCA/edit"
                   value={formData.sheetUrl || formData.spreadsheetId || ''}
                   onChange={(e) => {
                     const val = e.target.value;

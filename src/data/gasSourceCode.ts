@@ -19,7 +19,7 @@ export const GAS_FILES: GasFile[] = [
 const CONFIG = {
   APP_NAME: "SIMPENDIK NON GELAR UNPAD",
   APP_TITLE: "Direktorat Pendidikan Non Gelar Universitas Padjadjaran",
-  SPREADSHEET_ID: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms", // Ganti dengan ID Spreadsheet Anda
+  SPREADSHEET_ID: "1sf36XFR19fAfZ5L-A4jr5TgueRodze__cuoLm-kYvCA", // Ganti dengan ID Spreadsheet Anda
   DEFAULT_DOMAIN: "@unpad.ac.id",
   DEFAULT_PAGE_SIZE: 10,
   
@@ -182,7 +182,7 @@ function checkPermission(requiredRole) {
  */
 
 function getSpreadsheet() {
-  if (CONFIG.SPREADSHEET_ID && CONFIG.SPREADSHEET_ID !== "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms") {
+  if (CONFIG.SPREADSHEET_ID && !CONFIG.SPREADSHEET_ID.startsWith("YOUR_")) {
     try {
       return SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
     } catch (e) {
