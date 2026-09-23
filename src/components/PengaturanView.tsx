@@ -2,19 +2,24 @@ import React, { useState } from 'react';
 import { 
   Settings, Save, Database, RefreshCw, CheckCircle2, 
   AlertTriangle, Shield, Globe, FileCode, Sliders, Image as ImageIcon,
-  DatabaseBackup, Download
+  DatabaseBackup, Download, ExternalLink, FileSpreadsheet, Link2
 } from 'lucide-react';
 import { SettingApp, LoginSettings } from '../types';
 import { UnpadLogo } from './UnpadLogo';
 import { LoginSettingsTab } from './LoginSettingsTab';
 import { DEFAULT_LOGIN_SETTINGS } from '../data/loginPresets';
-import { generateSystemBackup } from '../services/storageService';
+import { 
+  generateSystemBackup, 
+  extractSpreadsheetId, 
+  getGoogleSheetUrl 
+} from '../services/storageService';
 
 interface PengaturanViewProps {
   settings: SettingApp;
   onSaveSettings: (settings: SettingApp) => void;
   onResetDatabase: () => void;
   onOpenGasModal: () => void;
+  onOpenSheetModal?: () => void;
   onNavigateToBackupRestore?: () => void;
   isAdmin?: boolean;
 }
@@ -24,6 +29,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
   onSaveSettings,
   onResetDatabase,
   onOpenGasModal,
+  onOpenSheetModal,
   onNavigateToBackupRestore,
   isAdmin = true,
 }) => {
@@ -237,24 +243,70 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
 
         {/* Integrasi Google Sheets */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-4">
-          <h2 className="font-bold text-[#002B66] flex items-center gap-2 border-b border-slate-100 pb-2">
-            <Database className="w-4 h-4 text-emerald-600" />
-            <span>Koneksi Google Spreadsheet Database</span>
-          </h2>
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <h2 className="font-bold text-[#002B66] flex items-center gap-2">
+              <Database className="w-4 h-4 text-emerald-600" />
+              <span>Koneksi Google Spreadsheet Database</span>
+            </h2>
+            {onOpenSheetModal && (
+              <button
+                type="button"
+                onClick={onOpenSheetModal}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-lg text-xs border border-emerald-200 transition-colors cursor-pointer"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Buka Panel Koneksi Sheet</span>
+              </button>
+            )}
+          </div>
 
           <div className="space-y-3">
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Google Spreadsheet ID</label>
-              <input
-                type="text"
-                placeholder="1AbCdEfGhIjKlMnOpQrStUvWxYz_SAMPLE_ID"
-                value={formData.spreadsheetId || ''}
-                onChange={(e) => setFormData({ ...formData, spreadsheetId: e.target.value })}
-                className="w-full p-2.5 rounded-lg border border-slate-200 bg-slate-50 font-mono focus:bg-white"
-              />
-              <span className="text-[10px] text-slate-400 mt-0.5 block">
-                ID spreadsheet dari URL Google Sheet: https://docs.google.com/spreadsheets/d/<strong>[SPREADSHEET_ID]</strong>/edit
-              </span>
+              <label className="block font-bold text-slate-700 mb-1">
+                Link / URL Google Sheet atau Spreadsheet ID
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
+                  value={formData.sheetUrl || formData.spreadsheetId || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const extracted = extractSpreadsheetId(val);
+                    setFormData({ 
+                      ...formData, 
+                      spreadsheetId: extracted,
+                      sheetUrl: val.includes('spreadsheets') ? val : getGoogleSheetUrl(extracted)
+                    });
+                  }}
+                  className="w-full p-2.5 rounded-lg border border-slate-200 bg-slate-50 font-mono text-xs focus:bg-white focus:ring-1 focus:ring-[#002B66]"
+                />
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1">
+                <span>
+                  Tempel URL lengkap dari browser: https://docs.google.com/spreadsheets/d/<strong>[SPREADSHEET_ID]</strong>/edit
+                </span>
+                {formData.spreadsheetId && (
+                  <span className="text-emerald-600 font-bold flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    ID: {formData.spreadsheetId}
+                  </span>
+                )}
+              </div>
+
+              {formData.spreadsheetId && (
+                <div className="mt-2 pt-1">
+                  <a
+                    href={getGoogleSheetUrl(formData.spreadsheetId)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-2xs transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Buka Google Sheet di Tab Baru</span>
+                  </a>
+                </div>
+              )}
             </div>
 
             <div>
@@ -264,7 +316,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                 placeholder="https://script.google.com/macros/s/AKfycbx.../exec"
                 value={formData.gasDeploymentUrl || ''}
                 onChange={(e) => setFormData({ ...formData, gasDeploymentUrl: e.target.value })}
-                className="w-full p-2.5 rounded-lg border border-slate-200 bg-slate-50 font-mono focus:bg-white"
+                className="w-full p-2.5 rounded-lg border border-slate-200 bg-slate-50 font-mono text-xs focus:bg-white"
               />
               <span className="text-[10px] text-slate-400 mt-0.5 block">
                 URL publik hasil deploy Web App Apps Script (Execute as: User accessing the web app / Me)
@@ -276,7 +328,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                 type="button"
                 onClick={handleTestConnection}
                 disabled={testResult.status === 'testing'}
-                className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${testResult.status === 'testing' ? 'animate-spin' : ''}`} />
                 <span>Test Koneksi Endpoint Google Sheets</span>

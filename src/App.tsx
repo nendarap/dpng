@@ -20,6 +20,7 @@ import { LoginView } from './components/LoginView';
 import { MapDashboardView } from './components/MapDashboardView';
 import { EduventureView } from './components/EduventureView';
 import { BackupRestoreView } from './components/BackupRestoreView';
+import { GoogleSheetConnectionModal } from './components/GoogleSheetConnectionModal';
 
 import { 
   Peserta, Kategori, Program, PicProgram, UserItem, LogAktivitas, SettingApp, UserRole,
@@ -68,6 +69,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isGasModalOpen, setIsGasModalOpen] = useState(false);
+  const [isSheetModalOpen, setIsSheetModalOpen] = useState(false);
 
   // Modal / Selection States
   const [detailPeserta, setDetailPeserta] = useState<Peserta | null>(null);
@@ -392,6 +394,7 @@ export default function App() {
         onRoleChange={handleRoleChange}
         onGroupChange={handleGroupChange}
         onOpenGasModal={() => setIsGasModalOpen(true)}
+        onOpenSheetModal={() => setIsSheetModalOpen(true)}
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         isSidebarOpen={isSidebarOpen}
         onLogout={handleLogout}
@@ -421,6 +424,7 @@ export default function App() {
           isOpen={isSidebarOpen}
           onCloseMobile={() => setIsSidebarOpen(false)}
           onLogout={handleLogout}
+          onOpenSheetModal={() => setIsSheetModalOpen(true)}
           currentTheme={currentTheme}
         />
 
@@ -659,6 +663,7 @@ export default function App() {
                   onSaveSettings={handleSaveSettings}
                   onResetDatabase={handleResetDatabase}
                   onOpenGasModal={() => setIsGasModalOpen(true)}
+                  onOpenSheetModal={() => setIsSheetModalOpen(true)}
                   onNavigateToBackupRestore={() => setActiveTab('backup_restore')}
                   isAdmin={currentUser.role === 'ADMIN'}
                 />
@@ -695,6 +700,18 @@ export default function App() {
       <GasSourceModal
         isOpen={isGasModalOpen}
         onClose={() => setIsGasModalOpen(false)}
+      />
+
+      {/* Google Sheet Storage Connection Modal */}
+      <GoogleSheetConnectionModal
+        isOpen={isSheetModalOpen}
+        onClose={() => setIsSheetModalOpen(false)}
+        onOpenGasModal={() => setIsGasModalOpen(true)}
+        userRole={currentUser.role}
+        onSuccess={(msg) => {
+          showToast(msg, 'success');
+          refreshAllData();
+        }}
       />
 
       {/* Floating Toast Notification */}

@@ -154,7 +154,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       (sum, b) => sum + (Number(b.jumlahPeserta) || 0) + (Number(b.jumlahGuru) || 0), 
       0
     );
-    const paidVisits = eduventureList.filter(b => b.statusPembayaran === 'Lunas').length;
+    const paidVisits = eduventureList.filter(b => b.statusBayar === 'Sudah').length;
     return { totalVisits, totalParticipants, paidVisits };
   }, [eduventureList]);
 

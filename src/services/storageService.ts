@@ -494,6 +494,70 @@ export function saveSettings(settings: SettingApp): void {
   writeLog('Update Pengaturan', 'SETTING', 'APP_CONFIG', 'Konfigurasi aplikasi disimpan');
 }
 
+/**
+ * Mengekstrak Google Spreadsheet ID dari link / URL Google Sheet atau string ID murni
+ */
+export function extractSpreadsheetId(urlOrId: string): string {
+  if (!urlOrId) return '';
+  const trimmed = urlOrId.trim();
+  // Format: https://docs.google.com/spreadsheets/d/[ID]/...
+  const match = trimmed.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (match && match[1]) {
+    return match[1];
+  }
+  // Format jika user hanya memasukkan ID langsung
+  return trimmed;
+}
+
+/**
+ * Menghasilkan URL lengkap Google Sheet dari Spreadsheet ID
+ */
+export function getGoogleSheetUrl(spreadsheetId: string): string {
+  const cleanId = extractSpreadsheetId(spreadsheetId);
+  if (!cleanId) return 'https://docs.google.com/spreadsheets';
+  return `https://docs.google.com/spreadsheets/d/${cleanId}/edit`;
+}
+
+/**
+ * Menyimpan tautan Google Sheet dan memperbarui pengaturan penyimpanan
+ */
+export function updateGoogleSheetConnection(sheetUrlOrId: string, gasUrl?: string): { success: boolean; spreadsheetId: string; sheetUrl: string; message: string } {
+  const spreadsheetId = extractSpreadsheetId(sheetUrlOrId);
+  if (!spreadsheetId) {
+    return {
+      success: false,
+      spreadsheetId: '',
+      sheetUrl: '',
+      message: 'ID atau Link Google Sheet tidak valid. Masukkan URL spreadsheet Google yang sah.'
+    };
+  }
+
+  const sheetUrl = getGoogleSheetUrl(spreadsheetId);
+  const currentSettings = getSettings();
+  const updatedSettings: SettingApp = {
+    ...currentSettings,
+    spreadsheetId,
+    sheetUrl,
+    gasDeploymentUrl: gasUrl !== undefined ? gasUrl : currentSettings.gasDeploymentUrl,
+    lastSyncedAt: new Date().toISOString().replace('T', ' ').substring(0, 19)
+  };
+
+  saveSettings(updatedSettings);
+  writeLog(
+    'Koneksi Google Sheet',
+    'DATABASE',
+    'SHEET_SYNC',
+    `Penyimpanan aplikasi berhasil dihubungkan ke Google Sheet ID: ${spreadsheetId}`
+  );
+
+  return {
+    success: true,
+    spreadsheetId,
+    sheetUrl,
+    message: `Penyimpanan aplikasi berhasil dihubungkan ke Google Sheet (ID: ${spreadsheetId})`
+  };
+}
+
 export function getLoginSettings(): LoginSettings {
   const settings = getSettings();
   return settings.loginSettings || DEFAULT_LOGIN_SETTINGS;

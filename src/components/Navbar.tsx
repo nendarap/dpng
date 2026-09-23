@@ -13,6 +13,7 @@ interface NavbarProps {
   onRoleChange: (role: UserRole) => void;
   onGroupChange?: (groupId: string) => void;
   onOpenGasModal: () => void;
+  onOpenSheetModal?: () => void;
   onToggleSidebar: () => void;
   isSidebarOpen: boolean;
   onLogout: () => void;
@@ -27,6 +28,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onRoleChange,
   onGroupChange,
   onOpenGasModal,
+  onOpenSheetModal,
   onToggleSidebar,
   onLogout,
   currentTheme = 'unpad-blue',
@@ -72,11 +74,17 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="flex items-center gap-2 sm:gap-3">
             {/* 1. Live Google Sheets Connection Badge (HANYA UNTUK ADMIN UTAMA) */}
             {isAdmin && (
-              <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium animate-in fade-in">
-                <Database className="w-3.5 h-3.5 text-emerald-600" />
+              <button
+                id="btn-navbar-sheets-connect"
+                type="button"
+                onClick={onOpenSheetModal}
+                className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 text-emerald-700 text-xs font-semibold animate-in fade-in transition-all cursor-pointer shadow-2xs hover:shadow-xs group"
+                title="Atur & Sinkronkan Penyimpanan ke Google Sheet"
+              >
+                <Database className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
                 <span>Google Sheets Database</span>
                 <CheckCircle2 className="w-3 h-3 text-emerald-500 ml-0.5" />
-              </div>
+              </button>
             )}
 
             {/* 2. Quick GAS Source Code Button (HANYA UNTUK ADMIN UTAMA) */}

@@ -274,9 +274,11 @@ export interface SettingApp {
   domainAllowed?: string;
   whitelistDomain?: string; // e.g. "@unpad.ac.id"
   spreadsheetId: string;
+  sheetUrl?: string;
   gasDeploymentUrl?: string;
   webAppUrl?: string;
   modeKoneksi?: 'local_sheet' | 'gas_live';
+  lastSyncedAt?: string;
   loginSettings?: LoginSettings;
 }
 

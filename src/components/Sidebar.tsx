@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, UserPlus, Layers, GraduationCap, 
   Search, FileSpreadsheet, Download, BarChart3, ShieldCheck, 
   History, Settings, Code, X, LogOut, Map, UserCheck, Compass,
-  SlidersHorizontal, Shield, ChevronRight, DatabaseBackup
+  SlidersHorizontal, Shield, ChevronRight, DatabaseBackup, Database
 } from 'lucide-react';
 import { UserRole, GroupAkun, UserItem, AppMenuId, AppMenuItemDef, AppThemeId } from '../types';
 import { hasMenuAccess } from '../data/privilegeData';
@@ -40,6 +40,7 @@ interface SidebarProps {
   isOpen: boolean;
   onCloseMobile: () => void;
   onLogout?: () => void;
+  onOpenSheetModal?: () => void;
   currentTheme?: AppThemeId;
 }
 
@@ -74,6 +75,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpen,
   onCloseMobile,
   onLogout,
+  onOpenSheetModal,
   currentTheme = 'unpad-blue',
 }) => {
   // Ambil background class berdasarkan tema aktif
@@ -296,13 +298,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           )}
 
-          <div className="flex items-center justify-between pt-1">
-            <span className="font-semibold text-white">Versi Apps Script</span>
-            <span className="text-emerald-400 font-mono text-[10px]">v3.2 Production</span>
+          <div 
+            onClick={onOpenSheetModal}
+            className={`p-2 rounded-lg bg-black/20 border border-white/10 ${onOpenSheetModal ? 'hover:bg-black/30 cursor-pointer transition-colors' : ''}`}
+            title="Klik untuk Mengatur Koneksi Penyimpanan Google Sheet"
+          >
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-white text-[11px] flex items-center gap-1.5">
+                <Database className="w-3 h-3 text-emerald-400" />
+                <span>Google Sheets DB</span>
+              </span>
+              <span className="text-emerald-400 font-mono text-[10px] bg-emerald-950/50 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                Terhubung
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-300 mt-1 flex items-center justify-between">
+              <span>Penyimpanan Utama</span>
+              <span className="text-[#FDB913] hover:underline font-medium">Atur Link Sheet →</span>
+            </p>
           </div>
-          <p className="text-[10px] text-slate-400">
-            Google Sheets as Primary Database
-          </p>
         </div>
       </aside>
     </>
