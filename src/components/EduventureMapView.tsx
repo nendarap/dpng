@@ -5,9 +5,11 @@ import {
   School, Building2, Users, Calendar, CreditCard, 
   Search, ExternalLink, Eye, MessageCircle, Filter, 
   Sparkles, Route, Navigation, Maximize2, Minimize2,
-  CheckCircle2, Clock, AlertTriangle, ChevronRight, Info
+  CheckCircle2, Clock, AlertTriangle, ChevronRight, Info,
+  ArrowUpRight
 } from 'lucide-react';
 import { EduventureBooking, UserRole } from '../types';
+import { GoogleMapsAiModal } from './GoogleMapsAiModal';
 import { 
   EDUVENTURE_CAMPUS_VENUES, 
   EduventureVenueLocation, 
@@ -53,13 +55,28 @@ export const EduventureMapView: React.FC<EduventureMapViewProps> = ({
   const routesLayerGroupRef = useRef<L.LayerGroup | null>(null);
 
   // View States
-  const [mapStyle, setMapStyle] = useState<'positron' | 'osm' | 'topo'>('positron');
+  const [mapStyle, setMapStyle] = useState<'google-streets' | 'google-satellite' | 'google-hybrid' | 'google-terrain' | 'positron' | 'osm' | 'topo'>('google-streets');
   const [viewMode, setViewMode] = useState<'origins' | 'venues' | 'both'>('both');
   const [showRouteLines, setShowRouteLines] = useState<boolean>(true);
   const [selectedSchool, setSelectedSchool] = useState<SchoolGeoCluster | null>(null);
   const [selectedVenue, setSelectedVenue] = useState<EduventureVenueLocation | null>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Google Maps AI Grounding State
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [aiModalPrompt, setAiModalPrompt] = useState('');
+  const [aiModalLocationName, setAiModalLocationName] = useState('Kampus Unpad Jatinangor');
+  const [aiModalCoords, setAiModalCoords] = useState<{ latitude: number; longitude: number } | undefined>({ latitude: -6.9261, longitude: 107.7747 });
+
+  const handleOpenAiExplorer = (name?: string, coords?: { latitude: number; longitude: number }, customPrompt?: string) => {
+    const locName = name || 'Kampus Unpad Jatinangor';
+    const locCoords = coords || { latitude: -6.9261, longitude: 107.7747 };
+    setAiModalLocationName(locName);
+    setAiModalCoords(locCoords);
+    setAiModalPrompt(customPrompt || `Rekomendasi fasilitas, akses rute transportasi, dan tempat kunjungan di sekitar ${locName}`);
+    setIsAiModalOpen(true);
+  };
 
   // Filter States
   const [filterTahun, setFilterTahun] = useState<string>('ALL');
@@ -199,8 +216,28 @@ export const EduventureMapView: React.FC<EduventureMapViewProps> = ({
   }, [filteredBookings]);
 
   // Tile layer URL resolver
-  const getTileConfig = (style: 'positron' | 'osm' | 'topo') => {
+  const getTileConfig = (style: 'google-streets' | 'google-satellite' | 'google-hybrid' | 'google-terrain' | 'positron' | 'osm' | 'topo') => {
     switch (style) {
+      case 'google-streets':
+        return {
+          url: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+          attribution: '&copy; Google Maps'
+        };
+      case 'google-satellite':
+        return {
+          url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+          attribution: '&copy; Google Maps'
+        };
+      case 'google-hybrid':
+        return {
+          url: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+          attribution: '&copy; Google Maps'
+        };
+      case 'google-terrain':
+        return {
+          url: 'https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
+          attribution: '&copy; Google Maps'
+        };
       case 'osm':
         return {
           url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -564,6 +601,20 @@ export const EduventureMapView: React.FC<EduventureMapViewProps> = ({
               <span className="text-[10px] font-semibold text-purple-700 uppercase block">Dominasi Jabar</span>
               <span className="font-extrabold text-purple-900 text-sm">{mapStats.jabarPct}% ({mapStats.jabarSchools} Sek)</span>
             </div>
+
+            <button
+              type="button"
+              onClick={() => handleOpenAiExplorer(
+                'Fasilitas & Venue Eduventure Universitas Padjadjaran',
+                { latitude: -6.9261, longitude: 107.7747 },
+                'Rekomendasi fasilitas kampus Unpad, auditorium, bale, akses rute bus rombongan, dan tempat kuliner edukasi di Jatinangor'
+              )}
+              className="px-3.5 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-amber-500 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
+              title="Buka AI Explorer dengan Google Maps Grounding"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+              <span>Tanya Google Maps AI</span>
+            </button>
           </div>
         </div>
 
@@ -671,8 +722,12 @@ export const EduventureMapView: React.FC<EduventureMapViewProps> = ({
             <select
               value={mapStyle}
               onChange={(e) => setMapStyle(e.target.value as any)}
-              className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-semibold focus:outline-none focus:ring-1 focus:ring-[#002B66]"
+              className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-semibold focus:outline-none focus:ring-1 focus:ring-[#002B66] shadow-2xs"
             >
+              <option value="google-streets">🗺️ Google Maps (Jalan)</option>
+              <option value="google-satellite">🛰️ Google Maps (Satelit)</option>
+              <option value="google-hybrid">🌐 Google Maps (Hibrid)</option>
+              <option value="google-terrain">⛰️ Google Maps (Medan)</option>
               <option value="positron">Peta Terang (Carto)</option>
               <option value="osm">OpenStreetMap</option>
               <option value="topo">Topografi / Kontur</option>
@@ -867,6 +922,43 @@ export const EduventureMapView: React.FC<EduventureMapViewProps> = ({
                   ))}
                 </div>
               </div>
+
+              {/* Google Maps & AI Actions */}
+              <div className="space-y-2 pt-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => handleOpenAiExplorer(
+                    selectedSchool.namaSekolah,
+                    { latitude: selectedSchool.lat, longitude: selectedSchool.lng },
+                    `Informasi rute perjalanan dari ${selectedSchool.namaSekolah} (${selectedSchool.kota}, ${selectedSchool.provinsi}) menuju Kampus Unpad Jatinangor, estimasi waktu tempuh, gerbang tol terdekat, dan persiapan logistik rombongan`
+                  )}
+                  className="w-full py-2 px-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Analisis Rute & Info Google Maps AI</span>
+                </button>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedSchool.namaSekolah + ', ' + selectedSchool.alamat)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="py-1.5 px-2 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-lg text-[11px] flex items-center justify-center gap-1 transition-all border border-slate-200 text-center"
+                  >
+                    <ExternalLink className="w-3 h-3 text-slate-500" />
+                    <span>Google Maps</span>
+                  </a>
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&origin=${selectedSchool.lat},${selectedSchool.lng}&destination=-6.9261,107.7747`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="py-1.5 px-2 bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold rounded-lg text-[11px] flex items-center justify-center gap-1 transition-all border border-amber-200 text-center"
+                  >
+                    <Navigation className="w-3 h-3 text-amber-600" />
+                    <span>Rute ke Unpad</span>
+                  </a>
+                </div>
+              </div>
             </div>
           ) : selectedVenue ? (
             /* Selected Campus Venue Info */
@@ -910,6 +1002,43 @@ export const EduventureMapView: React.FC<EduventureMapViewProps> = ({
               <p className="text-xs text-slate-600 leading-relaxed bg-white p-2.5 rounded-lg border border-purple-100">
                 {selectedVenue.description}
               </p>
+
+              {/* Google Maps & AI Actions for Venue */}
+              <div className="space-y-2 pt-2 border-t border-purple-200">
+                <button
+                  type="button"
+                  onClick={() => handleOpenAiExplorer(
+                    selectedVenue.name,
+                    { latitude: selectedVenue.lat, longitude: selectedVenue.lng },
+                    `Informasi fasilitas, area parkir bus rombongan, akses jalan, dan titik kumpul di sekitar ${selectedVenue.name} (${selectedVenue.campus})`
+                  )}
+                  className="w-full py-2 px-3 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Eksplorasi Fasilitas dengan AI</span>
+                </button>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${selectedVenue.lat},${selectedVenue.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="py-1.5 px-2 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-lg text-[11px] flex items-center justify-center gap-1 transition-all border border-purple-200 text-center"
+                  >
+                    <ExternalLink className="w-3 h-3 text-purple-600" />
+                    <span>Google Maps</span>
+                  </a>
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${selectedVenue.lat},${selectedVenue.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="py-1.5 px-2 bg-purple-100 hover:bg-purple-200 text-purple-900 font-semibold rounded-lg text-[11px] flex items-center justify-center gap-1 transition-all border border-purple-300 text-center"
+                  >
+                    <Navigation className="w-3 h-3 text-purple-700" />
+                    <span>Petunjuk Rute</span>
+                  </a>
+                </div>
+              </div>
             </div>
           ) : (
             /* Default School List Directory */
@@ -961,6 +1090,15 @@ export const EduventureMapView: React.FC<EduventureMapViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Google Maps AI Grounding Intelligence Modal */}
+      <GoogleMapsAiModal
+        isOpen={isAiModalOpen}
+        onClose={() => setIsAiModalOpen(false)}
+        initialPrompt={aiModalPrompt}
+        initialLocationName={aiModalLocationName}
+        initialCoords={aiModalCoords}
+      />
     </div>
   );
 };

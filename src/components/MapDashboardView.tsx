@@ -3,10 +3,12 @@ import L from 'leaflet';
 import { 
   Map as MapIcon, MapPin, Layers, ZoomIn, ZoomOut, Filter, RotateCcw, 
   Users, Building2, Award, GraduationCap, ChevronRight, CheckCircle2, 
-  ExternalLink, Eye, Compass, Globe2, School, Search, Info
+  ExternalLink, Eye, Compass, Globe2, School, Search, Info,
+  Sparkles, Navigation, ArrowUpRight
 } from 'lucide-react';
 import { Peserta, Kategori, Program } from '../types';
 import { UnpadLogo } from './UnpadLogo';
+import { GoogleMapsAiModal } from './GoogleMapsAiModal';
 import { 
   UNPAD_CAMPUSES, 
   PROVINCE_COORDINATES, 
@@ -55,10 +57,25 @@ export const MapDashboardView: React.FC<MapDashboardViewProps> = ({
   const [searchLocationQuery, setSearchLocationQuery] = useState<string>('');
 
   // View States
-  const [mapStyle, setMapStyle] = useState<'positron' | 'osm' | 'topo'>('positron');
+  const [mapStyle, setMapStyle] = useState<'google-streets' | 'google-satellite' | 'google-hybrid' | 'google-terrain' | 'positron' | 'osm' | 'topo'>('google-streets');
   const [displayMode, setDisplayMode] = useState<'bubbles' | 'pins'>('bubbles');
   const [showCampuses, setShowCampuses] = useState<boolean>(true);
   const [selectedCluster, setSelectedCluster] = useState<LocationCluster | null>(null);
+
+  // Google Maps AI Grounding State
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [aiModalPrompt, setAiModalPrompt] = useState('');
+  const [aiModalLocationName, setAiModalLocationName] = useState('Kampus Unpad Jatinangor');
+  const [aiModalCoords, setAiModalCoords] = useState<{ latitude: number; longitude: number } | undefined>({ latitude: -6.9261, longitude: 107.7747 });
+
+  const handleOpenAiExplorer = (name?: string, coords?: { latitude: number; longitude: number }, customPrompt?: string) => {
+    const locName = name || 'Kampus Unpad Jatinangor';
+    const locCoords = coords || { latitude: -6.9261, longitude: 107.7747 };
+    setAiModalLocationName(locName);
+    setAiModalCoords(locCoords);
+    setAiModalPrompt(customPrompt || `Rekomendasi fasilitas, akses transportasi, dan akomodasi di sekitar ${locName}`);
+    setIsAiModalOpen(true);
+  };
 
   // Filtered Peserta Data
   const filteredPeserta = useMemo(() => {
@@ -144,8 +161,28 @@ export const MapDashboardView: React.FC<MapDashboardViewProps> = ({
   }, [filteredPeserta]);
 
   // Tile layer URL resolver
-  const getTileUrl = (style: 'positron' | 'osm' | 'topo') => {
+  const getTileUrl = (style: 'google-streets' | 'google-satellite' | 'google-hybrid' | 'google-terrain' | 'positron' | 'osm' | 'topo') => {
     switch (style) {
+      case 'google-streets':
+        return {
+          url: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+          attribution: '&copy; Google Maps'
+        };
+      case 'google-satellite':
+        return {
+          url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+          attribution: '&copy; Google Maps'
+        };
+      case 'google-hybrid':
+        return {
+          url: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+          attribution: '&copy; Google Maps'
+        };
+      case 'google-terrain':
+        return {
+          url: 'https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
+          attribution: '&copy; Google Maps'
+        };
       case 'osm':
         return {
           url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -266,15 +303,23 @@ export const MapDashboardView: React.FC<MapDashboardViewProps> = ({
         const campusMarker = L.marker([campus.lat, campus.lng], { icon: campusIcon });
         
         campusMarker.bindPopup(`
-          <div style="font-family: system-ui, sans-serif; min-width: 220px; padding: 4px;">
-            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+          <div style="font-family: system-ui, sans-serif; min-width: 230px; padding: 4px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 4px;">
               <span style="background: #002B66; color: #FDB913; font-weight: 800; font-size: 10px; padding: 2px 6px; border-radius: 4px;">KAMPUS UNPAD</span>
               <span style="font-size: 11px; color: #64748B; font-weight: 600;">Direktorat DPNG</span>
             </div>
             <h4 style="margin: 0 0 4px 0; font-size: 13px; font-weight: 800; color: #002B66; line-height: 1.3;">${campus.name}</h4>
             <p style="margin: 0 0 6px 0; font-size: 11px; color: #475569;">${campus.subName}</p>
-            <div style="font-size: 10px; color: #64748B; line-height: 1.4; background: #F8FAFC; padding: 6px 8px; border-radius: 6px; border: 1px solid #E2E8F0;">
+            <div style="font-size: 10px; color: #64748B; line-height: 1.4; background: #F8FAFC; padding: 6px 8px; border-radius: 6px; border: 1px solid #E2E8F0; margin-bottom: 8px;">
               ${campus.description}
+            </div>
+            <div style="display: flex; gap: 4px;">
+              <a href="https://www.google.com/maps/search/?api=1&query=${campus.lat},${campus.lng}" target="_blank" rel="noopener noreferrer" style="flex: 1; text-align: center; background: #002B66; color: #FFFFFF; padding: 5px 8px; border-radius: 6px; text-decoration: none; font-size: 10px; font-weight: 700;">
+                📍 Buka Google Maps
+              </a>
+              <a href="https://www.google.com/maps/dir/?api=1&destination=${campus.lat},${campus.lng}" target="_blank" rel="noopener noreferrer" style="flex: 1; text-align: center; background: #FDB913; color: #002B66; padding: 5px 8px; border-radius: 6px; text-decoration: none; font-size: 10px; font-weight: 700;">
+                🚗 Petunjuk Arah
+              </a>
             </div>
           </div>
         `);
@@ -440,6 +485,14 @@ export const MapDashboardView: React.FC<MapDashboardViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => handleOpenAiExplorer()}
+            className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-amber-500 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer"
+            title="Buka AI Explorer dengan data aktual Google Maps"
+          >
+            <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+            <span>Tanya Google Maps AI</span>
+          </button>
           <button
             onClick={() => onNavigateToPeserta()}
             className="flex items-center gap-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
@@ -673,8 +726,12 @@ export const MapDashboardView: React.FC<MapDashboardViewProps> = ({
               <select
                 value={mapStyle}
                 onChange={(e) => setMapStyle(e.target.value as any)}
-                className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-700 cursor-pointer"
+                className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-700 cursor-pointer shadow-2xs"
               >
+                <option value="google-streets">🗺️ Google Maps (Jalan)</option>
+                <option value="google-satellite">🛰️ Google Maps (Satelit)</option>
+                <option value="google-hybrid">🌐 Google Maps (Hibrid)</option>
+                <option value="google-terrain">⛰️ Google Maps (Medan)</option>
                 <option value="positron">Peta Terang (Clean)</option>
                 <option value="osm">Peta Standar (OSM)</option>
                 <option value="topo">Peta Topografi (Esri)</option>
@@ -821,14 +878,51 @@ export const MapDashboardView: React.FC<MapDashboardViewProps> = ({
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => onNavigateToPeserta({ provinsi: selectedCluster.provinsi })}
-                className="w-full mt-3 py-2 px-3 bg-[#002B66] hover:bg-[#002252] text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer"
-              >
-                <span>Lihat di Halaman Peserta</span>
-                <ExternalLink className="w-3.5 h-3.5 text-[#FDB913]" />
-              </button>
+              {/* Action Buttons */}
+              <div className="space-y-2 mt-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => handleOpenAiExplorer(
+                    `${selectedCluster.name}, ${selectedCluster.provinsi}`,
+                    { latitude: selectedCluster.lat, longitude: selectedCluster.lng },
+                    `Informasi fasilitas pendidikan, sekolah mitra, rute transportasi, dan tempat penting di sekitar ${selectedCluster.name}, ${selectedCluster.provinsi}`
+                  )}
+                  className="w-full py-2 px-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Eksplorasi Wilayah dengan Google Maps AI</span>
+                </button>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedCluster.name + ', ' + selectedCluster.provinsi)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="py-2 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-[11px] flex items-center justify-center gap-1 transition-all text-center"
+                  >
+                    <ExternalLink className="w-3 h-3 text-slate-500" />
+                    <span>Google Maps</span>
+                  </a>
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${selectedCluster.lat},${selectedCluster.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="py-2 px-2 bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold rounded-xl text-[11px] flex items-center justify-center gap-1 transition-all text-center border border-amber-200"
+                  >
+                    <Navigation className="w-3 h-3 text-amber-600" />
+                    <span>Petunjuk Rute</span>
+                  </a>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => onNavigateToPeserta({ provinsi: selectedCluster.provinsi })}
+                  className="w-full py-2 px-3 bg-[#002B66] hover:bg-[#002252] text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                >
+                  <span>Lihat di Halaman Peserta</span>
+                  <ExternalLink className="w-3.5 h-3.5 text-[#FDB913]" />
+                </button>
+              </div>
             </div>
           ) : (
             <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-6 text-center text-slate-400">
@@ -919,6 +1013,15 @@ export const MapDashboardView: React.FC<MapDashboardViewProps> = ({
 
         </div>
       </div>
+
+      {/* Google Maps AI Grounding Intelligence Modal */}
+      <GoogleMapsAiModal
+        isOpen={isAiModalOpen}
+        onClose={() => setIsAiModalOpen(false)}
+        initialPrompt={aiModalPrompt}
+        initialLocationName={aiModalLocationName}
+        initialCoords={aiModalCoords}
+      />
     </div>
   );
 };
