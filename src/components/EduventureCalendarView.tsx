@@ -3,9 +3,13 @@ import {
   Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, 
   Search, Filter, Building2, Users, CheckCircle2, Clock, 
   MapPin, Phone, Eye, Edit2, Sparkles, School, 
-  Layers, ArrowUpRight, X, RotateCcw, CalendarDays, ListFilter
+  Layers, ArrowUpRight, X, RotateCcw, CalendarDays, ListFilter,
+  ExternalLink, Download, Mail
 } from 'lucide-react';
 import { EduventureBooking, UserRole } from '../types';
+import { createGoogleCalendarUrl, exportSingleBookingIcs } from '../services/googleCalendarService';
+import { GoogleCalendarSyncModal } from './GoogleCalendarSyncModal';
+import { EduventureEmailNotificationModal } from './EduventureEmailNotificationModal';
 
 interface EduventureCalendarViewProps {
   eduventureList: EduventureBooking[];
@@ -14,6 +18,7 @@ interface EduventureCalendarViewProps {
   onSelectBooking: (booking: EduventureBooking) => void;
   onEditBooking: (booking: EduventureBooking) => void;
   onAddNewBooking: (date?: string) => void;
+  onUpdateBooking?: (updated: EduventureBooking) => void;
 }
 
 const MONTH_NAMES_ID = [
@@ -101,7 +106,8 @@ export const EduventureCalendarView: React.FC<EduventureCalendarViewProps> = ({
   userRole,
   onSelectBooking,
   onEditBooking,
-  onAddNewBooking
+  onAddNewBooking,
+  onUpdateBooking,
 }) => {
   // Find initial month: closest month with bookings or today's month
   const initialDate = useMemo(() => {
@@ -143,6 +149,10 @@ export const EduventureCalendarView: React.FC<EduventureCalendarViewProps> = ({
   });
 
   const [calendarMode, setCalendarMode] = useState<'grid' | 'timeline'>('grid');
+  const [isGoogleCalendarModalOpen, setIsGoogleCalendarModalOpen] = useState<boolean>(false);
+  const [selectedBookingForCalendar, setSelectedBookingForCalendar] = useState<EduventureBooking | null>(null);
+  const [isEmailNotificationModalOpen, setIsEmailNotificationModalOpen] = useState<boolean>(false);
+  const [selectedBookingForEmail, setSelectedBookingForEmail] = useState<EduventureBooking | null>(null);
 
   // Filters
   const [filterPaket, setFilterPaket] = useState<string>('ALL');
@@ -413,6 +423,25 @@ export const EduventureCalendarView: React.FC<EduventureCalendarViewProps> = ({
                 <span>Timeline Agenda</span>
               </button>
             </div>
+
+            {/* Google Calendar Sync Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedBookingForCalendar(null);
+                setIsGoogleCalendarModalOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-blue-600 to-[#1a73e8] hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl text-xs shadow-sm transition-all duration-150 transform hover:-translate-y-0.5"
+              title="Sinkronisasi Jadwal ke Google Calendar"
+            >
+              <svg viewBox="0 0 48 48" className="w-3.5 h-3.5 shrink-0">
+                <path fill="#fff" d="M38 44H10c-3.3 0-6-2.7-6-6V10c0-3.3 2.7-6 6-6h28c3.3 0 6 2.7 6 6v28c0 3.3-2.7 6-6 6z"/>
+                <path fill="#4285F4" d="M10 8h28c1.1 0 2 .9 2 2v28c0 1.1-.9 2-2 2H10c-1.1 0-2-.9-2-2V10c0-1.1.9-2 2-2z"/>
+                <path fill="#EA4335" d="M38 4H10C6.7 4 4 6.7 4 10v4h40v-4c0-3.3-2.7-6-6-6z"/>
+                <path fill="#188038" d="M34 22h-6v-6h-4v6h-6v4h6v6h4v-6h6z"/>
+              </svg>
+              <span>Google Calendar</span>
+            </button>
 
             {userRole !== 'VIEWER' && (
               <button
@@ -871,25 +900,69 @@ export const EduventureCalendarView: React.FC<EduventureCalendarViewProps> = ({
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                        <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100">
                           <button
                             type="button"
                             onClick={() => onSelectBooking(item)}
-                            className="flex-1 py-1.5 px-2.5 bg-blue-50 hover:bg-blue-100 text-[#002B66] font-semibold rounded-lg text-xs transition-colors flex items-center justify-center gap-1"
+                            className="flex-1 py-1.5 px-2 bg-blue-50 hover:bg-blue-100 text-[#002B66] font-semibold rounded-lg text-xs transition-colors flex items-center justify-center gap-1"
                           >
                             <Eye className="w-3.5 h-3.5" />
-                            Lembar Konfirmasi
+                            <span>Detail</span>
+                          </button>
+
+                          <a
+                            href={createGoogleCalendarUrl(item)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="py-1.5 px-2.5 bg-white hover:bg-blue-50 text-[#1a73e8] border border-blue-200 font-bold rounded-lg text-xs transition-colors flex items-center justify-center gap-1 shadow-2xs"
+                            title="Jadwalkan di Google Calendar (1-Klik)"
+                          >
+                            <svg viewBox="0 0 48 48" className="w-3.5 h-3.5 shrink-0">
+                              <path fill="#4285F4" d="M38 44H10c-3.3 0-6-2.7-6-6V10c0-3.3 2.7-6 6-6h28c3.3 0 6 2.7 6 6v28c0 3.3-2.7 6-6 6z"/>
+                              <path fill="#fff" d="M10 8h28c1.1 0 2 .9 2 2v28c0 1.1-.9 2-2 2H10c-1.1 0-2-.9-2-2V10c0-1.1.9-2 2-2z"/>
+                              <path fill="#EA4335" d="M38 4H10C6.7 4 4 6.7 4 10v4h40v-4c0-3.3-2.7-6-6-6z"/>
+                            </svg>
+                            <span className="hidden sm:inline">Google Cal</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedBookingForCalendar(item);
+                              setIsGoogleCalendarModalOpen(true);
+                            }}
+                            className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs transition-colors"
+                            title="Opsi Kalender & Export .ICS"
+                          >
+                            <CalendarDays className="w-3.5 h-3.5 text-blue-700" />
+                          </button>
+
+                          {/* Email Notification Button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedBookingForEmail(item);
+                              setIsEmailNotificationModalOpen(true);
+                            }}
+                            className={`p-1.5 rounded-lg text-xs transition-colors ${
+                              item.emailNotifikasiTerkirim
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                                : 'bg-white text-slate-500 hover:text-red-600 hover:bg-red-50 border border-slate-200'
+                            }`}
+                            title={item.emailNotifikasiTerkirim ? 'Email notifikasi terkirim (Klik untuk kelola)' : 'Kirim Email Notifikasi Konfirmasi'}
+                          >
+                            <Mail className="w-3.5 h-3.5" />
                           </button>
 
                           {userRole !== 'VIEWER' && (
                             <button
                               type="button"
                               onClick={() => onEditBooking(item)}
-                              className="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg text-xs transition-colors flex items-center justify-center gap-1"
+                              className="py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg text-xs transition-colors flex items-center justify-center gap-1"
                               title="Edit Data Kunjungan"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
-                              Edit
                             </button>
                           )}
                         </div>
@@ -1019,6 +1092,41 @@ export const EduventureCalendarView: React.FC<EduventureCalendarViewProps> = ({
                           </a>
                         )}
 
+                        {/* Google Calendar Direct Link */}
+                        <a
+                          href={createGoogleCalendarUrl(item)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-2.5 py-2 bg-white hover:bg-blue-50 text-[#1a73e8] border border-blue-200 font-bold rounded-lg text-xs transition-colors flex items-center gap-1 shadow-2xs"
+                          title="Buka dan Jadwalkan di Google Calendar"
+                        >
+                          <svg viewBox="0 0 48 48" className="w-3.5 h-3.5 shrink-0">
+                            <path fill="#4285F4" d="M38 44H10c-3.3 0-6-2.7-6-6V10c0-3.3 2.7-6 6-6h28c3.3 0 6 2.7 6 6v28c0 3.3-2.7 6-6 6z"/>
+                            <path fill="#fff" d="M10 8h28c1.1 0 2 .9 2 2v28c0 1.1-.9 2-2 2H10c-1.1 0-2-.9-2-2V10c0-1.1.9-2 2-2z"/>
+                            <path fill="#EA4335" d="M38 4H10C6.7 4 4 6.7 4 10v4h40v-4c0-3.3-2.7-6-6-6z"/>
+                          </svg>
+                          <span className="hidden md:inline">Google Cal</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+
+                        {/* Email Notification Button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedBookingForEmail(item);
+                            setIsEmailNotificationModalOpen(true);
+                          }}
+                          className={`px-2.5 py-2 border rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 ${
+                            item.emailNotifikasiTerkirim
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-red-50 hover:text-red-700'
+                          }`}
+                          title={item.emailNotifikasiTerkirim ? 'Email notifikasi sudah terkirim' : 'Kirim Notifikasi Email'}
+                        >
+                          <Mail className="w-3.5 h-3.5" />
+                          <span className="hidden md:inline">{item.emailNotifikasiTerkirim ? 'Terkirim' : 'Email'}</span>
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => onSelectBooking(item)}
@@ -1046,6 +1154,25 @@ export const EduventureCalendarView: React.FC<EduventureCalendarViewProps> = ({
           )}
         </div>
       )}
+
+      {/* Google Calendar Sync Modal */}
+      <GoogleCalendarSyncModal
+        isOpen={isGoogleCalendarModalOpen}
+        onClose={() => setIsGoogleCalendarModalOpen(false)}
+        bookings={eduventureList}
+        initialSelectedBooking={selectedBookingForCalendar}
+        onBookingUpdated={onUpdateBooking}
+      />
+
+      {/* Eduventure Email Notification Modal */}
+      <EduventureEmailNotificationModal
+        isOpen={isEmailNotificationModalOpen}
+        onClose={() => setIsEmailNotificationModalOpen(false)}
+        booking={selectedBookingForEmail}
+        onStatusUpdated={(updated) => {
+          if (onUpdateBooking) onUpdateBooking(updated);
+        }}
+      />
     </div>
   );
 };

@@ -654,7 +654,7 @@ export default function App() {
               )}
 
               {activeTab === 'log' && (
-                <LogAktivitasView logs={logs} />
+                <LogAktivitasView logs={logs} currentUser={currentUser} />
               )}
 
               {activeTab === 'setting' && (

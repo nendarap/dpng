@@ -133,8 +133,29 @@ export interface EduventureBooking {
   rekening: RekeningEduventure;
   catatanTambahan?: string;
   statusKunjungan?: 'Menunggu' | 'Dikonfirmasi' | 'Terlaksana' | 'Batal';
+  googleCalendarEventId?: string;
+  googleCalendarHtmlLink?: string;
+  googleCalendarSyncedAt?: string;
+  emailNotifikasiTerkirim?: boolean;
+  emailNotifikasiTanggal?: string;
+  emailNotifikasiPenerima?: string;
+  whatsappNotifikasiTerkirim?: boolean;
+  whatsappNotifikasiTanggal?: string;
+  whatsappNotifikasiPenerima?: string;
+  whatsappMessageId?: string;
+  whatsappGatewayProvider?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export type WhatsAppProviderType = 'fonnte' | 'wablas' | 'generic' | 'simulation';
+
+export interface WhatsAppGatewayConfig {
+  provider: WhatsAppProviderType;
+  apiToken: string;
+  customEndpoint?: string;
+  senderPhone?: string;
+  autoSendOnConfirm: boolean;
 }
 
 export type AppThemeId = 'unpad-blue' | 'unpad-emerald' | 'unpad-dark' | 'unpad-maroon';

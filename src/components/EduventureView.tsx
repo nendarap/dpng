@@ -5,7 +5,7 @@ import {
   FileText, ExternalLink, Edit2, Trash2, Eye, Download, Printer, 
   Layers, ChevronRight, Copy, Check, Upload, X, AlertTriangle, 
   Building2, Landmark, Sparkles, FileSpreadsheet, LayoutGrid, Table, CalendarDays,
-  BarChart3
+  BarChart3, MessageSquare
 } from 'lucide-react';
 import { 
   EduventureBooking, Kategori, Program, UserRole, 
@@ -17,6 +17,14 @@ import { EduventureImportModal } from './EduventureImportModal';
 import { EduventureCalendarView } from './EduventureCalendarView';
 import { EduventureDashboardView } from './EduventureDashboardView';
 import { EduventureMapView } from './EduventureMapView';
+import { GoogleCalendarSyncModal } from './GoogleCalendarSyncModal';
+import { EduventureEmailNotificationModal } from './EduventureEmailNotificationModal';
+import { EduventureWhatsAppNotificationModal } from './EduventureWhatsAppNotificationModal';
+import { createGoogleCalendarUrl } from '../services/googleCalendarService';
+import { 
+  sendEduventureWhatsAppNotification, 
+  getWhatsAppGatewayConfig 
+} from '../services/eduventureWhatsAppService';
 import { 
   bulkImportEduventure, 
   getTempatEduventure, 
@@ -104,6 +112,13 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
   // Modals
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isGoogleCalendarModalOpen, setIsGoogleCalendarModalOpen] = useState(false);
+  const [selectedBookingForCalendar, setSelectedBookingForCalendar] = useState<EduventureBooking | null>(null);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [selectedBookingForEmail, setSelectedBookingForEmail] = useState<EduventureBooking | null>(null);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [selectedBookingForWhatsApp, setSelectedBookingForWhatsApp] = useState<EduventureBooking | null>(null);
+  const [waAutoToast, setWaAutoToast] = useState<{ show: boolean; text: string; success: boolean } | null>(null);
   const [editingItem, setEditingItem] = useState<EduventureBooking | null>(null);
   const [detailItem, setDetailItem] = useState<EduventureBooking | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<EduventureBooking | null>(null);
@@ -374,8 +389,76 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
       updatedAt: ''
     };
 
+    const wasConfirmed = editingItem?.statusKunjungan === 'Dikonfirmasi';
+    const nowConfirmed = formStatusKunjungan === 'Dikonfirmasi';
+
     onSaveEduventure(payload);
     setIsFormOpen(false);
+
+    // Otomatis kirim notifikasi WhatsApp jika status kunjungan berubah menjadi 'Dikonfirmasi'
+    if (!wasConfirmed && nowConfirmed && payload.nomorKontak) {
+      const waConfig = getWhatsAppGatewayConfig();
+      if (waConfig.autoSendOnConfirm) {
+        sendEduventureWhatsAppNotification(payload).then(res => {
+          if (res.success) {
+            setWaAutoToast({
+              show: true,
+              text: `Status Dikonfirmasi! Notifikasi WhatsApp otomatis terkirim ke narahubung ${payload.namaSekolah} (${payload.nomorKontak}) via Gateway ${res.provider}.`,
+              success: true
+            });
+            setTimeout(() => setWaAutoToast(null), 5000);
+          } else {
+            setWaAutoToast({
+              show: true,
+              text: `Status dikonfirmasi, namun WhatsApp gagal terkirim: ${res.error}`,
+              success: false
+            });
+            setTimeout(() => setWaAutoToast(null), 5000);
+          }
+        });
+      }
+    }
+  };
+
+  // Quick Action: Konfirmasi Kunjungan 1-Klik sekaligus otomatis kirim WhatsApp
+  const handleQuickConfirmBooking = async (item: EduventureBooking) => {
+    const updated: EduventureBooking = {
+      ...item,
+      statusKunjungan: 'Dikonfirmasi'
+    };
+    onSaveEduventure(updated);
+
+    const waConfig = getWhatsAppGatewayConfig();
+    if (waConfig.autoSendOnConfirm && item.nomorKontak) {
+      setWaAutoToast({
+        show: true,
+        text: `Mengonfirmasi jadwal & mengirimkan notifikasi WhatsApp ke ${item.nomorKontak}...`,
+        success: true
+      });
+      const res = await sendEduventureWhatsAppNotification(updated);
+      if (res.success) {
+        setWaAutoToast({
+          show: true,
+          text: `Booking ${item.namaSekolah} resmi dikonfirmasi! Notifikasi WhatsApp otomatis terkirim ke ${item.nomorKontak} via ${res.provider}.`,
+          success: true
+        });
+        setTimeout(() => setWaAutoToast(null), 5000);
+      } else {
+        setWaAutoToast({
+          show: true,
+          text: `Booking dikonfirmasi, namun gateway WhatsApp: ${res.error}`,
+          success: false
+        });
+        setTimeout(() => setWaAutoToast(null), 5000);
+      }
+    } else {
+      setWaAutoToast({
+        show: true,
+        text: `Kunjungan ${item.namaSekolah} berhasil dikonfirmasi!`,
+        success: true
+      });
+      setTimeout(() => setWaAutoToast(null), 3000);
+    }
   };
 
   // File Upload Handler for Bukti Transfer
@@ -545,6 +628,39 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
             >
               <CalendarDays className="w-4 h-4" />
               <span>Kalender Agenda</span>
+            </button>
+
+            <button
+              id="btn-header-google-calendar-eduventure"
+              type="button"
+              onClick={() => {
+                setSelectedBookingForCalendar(null);
+                setIsGoogleCalendarModalOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-gradient-to-r from-blue-600 to-[#1a73e8] hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md hover:shadow-lg transition-all duration-150 transform hover:-translate-y-0.5 border border-blue-400/40"
+              title="Integrasi & Sinkronisasi Google Calendar"
+            >
+              <svg viewBox="0 0 48 48" className="w-4 h-4 shrink-0">
+                <path fill="#fff" d="M38 44H10c-3.3 0-6-2.7-6-6V10c0-3.3 2.7-6 6-6h28c3.3 0 6 2.7 6 6v28c0 3.3-2.7 6-6 6z"/>
+                <path fill="#4285F4" d="M10 8h28c1.1 0 2 .9 2 2v28c0 1.1-.9 2-2 2H10c-1.1 0-2-.9-2-2V10c0-1.1.9-2 2-2z"/>
+                <path fill="#EA4335" d="M38 4H10C6.7 4 4 6.7 4 10v4h40v-4c0-3.3-2.7-6-6-6z"/>
+                <path fill="#188038" d="M34 22h-6v-6h-4v6h-6v4h6v6h4v-6h6z"/>
+              </svg>
+              <span>Google Calendar</span>
+            </button>
+
+            <button
+              id="btn-header-email-notification-eduventure"
+              type="button"
+              onClick={() => {
+                setSelectedBookingForEmail(filteredList[0] || eduventureList[0] || null);
+                setIsEmailModalOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md hover:shadow-lg transition-all duration-150 transform hover:-translate-y-0.5 border border-red-400/40"
+              title="Kirim Notifikasi Email Konfirmasi ke Sekolah"
+            >
+              <Mail className="w-4 h-4 shrink-0" />
+              <span>Email Notifikasi</span>
             </button>
 
             <button
@@ -844,6 +960,9 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
           onAddNewBooking={(date) => {
             handleOpenAdd(date);
           }}
+          onUpdateBooking={(updated) => {
+            onSaveEduventure(updated);
+          }}
         />
       ) : viewMode === 'map' ? (
         <div className="space-y-4">
@@ -1014,7 +1133,7 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
 
                 {/* Card Actions */}
                 <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-1.5">
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <button
                       type="button"
                       onClick={() => setDetailItem(item)}
@@ -1024,6 +1143,40 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
                       <Eye className="w-3.5 h-3.5" />
                       Detail
                     </button>
+
+                    <a
+                      href={createGoogleCalendarUrl(item)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-2 py-1.5 text-xs font-semibold text-[#1a73e8] bg-white hover:bg-blue-50 border border-blue-200 rounded-lg transition-colors flex items-center gap-1 shadow-2xs"
+                      title="Jadwalkan di Google Calendar (1-Klik)"
+                    >
+                      <svg viewBox="0 0 48 48" className="w-3.5 h-3.5 shrink-0">
+                        <path fill="#4285F4" d="M38 44H10c-3.3 0-6-2.7-6-6V10c0-3.3 2.7-6 6-6h28c3.3 0 6 2.7 6 6v28c0 3.3-2.7 6-6 6z"/>
+                        <path fill="#fff" d="M10 8h28c1.1 0 2 .9 2 2v28c0 1.1-.9 2-2 2H10c-1.1 0-2-.9-2-2V10c0-1.1.9-2 2-2z"/>
+                        <path fill="#EA4335" d="M38 4H10C6.7 4 4 6.7 4 10v4h40v-4c0-3.3-2.7-6-6-6z"/>
+                      </svg>
+                      <span className="hidden sm:inline">Google Cal</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedBookingForEmail(item);
+                        setIsEmailModalOpen(true);
+                      }}
+                      className={`px-2 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 shadow-2xs ${
+                        item.emailNotifikasiTerkirim
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                          : 'bg-white text-slate-700 hover:text-red-700 hover:bg-red-50 border border-slate-200'
+                      }`}
+                      title={item.emailNotifikasiTerkirim ? 'Email notifikasi sudah terkirim (Klik untuk kelola)' : 'Kirim Email Notifikasi Konfirmasi'}
+                    >
+                      <Mail className="w-3.5 h-3.5 text-red-600" />
+                      <span className="hidden sm:inline">{item.emailNotifikasiTerkirim ? 'Terkirim' : 'Email'}</span>
+                    </button>
+
                     {item.buktiTransferUrl && (
                       <button
                         type="button"
@@ -1146,6 +1299,30 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
                     </td>
                     <td className="py-3 px-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1">
+                        <a
+                          href={createGoogleCalendarUrl(item)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-1.5 text-[#1a73e8] hover:bg-blue-50 rounded-md"
+                          title="Jadwalkan di Google Calendar"
+                        >
+                          <Calendar className="w-4 h-4" />
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedBookingForEmail(item);
+                            setIsEmailModalOpen(true);
+                          }}
+                          className={`p-1.5 rounded-md ${
+                            item.emailNotifikasiTerkirim 
+                              ? 'text-emerald-600 hover:bg-emerald-50' 
+                              : 'text-red-500 hover:bg-red-50'
+                          }`}
+                          title={item.emailNotifikasiTerkirim ? 'Email notifikasi sudah terkirim' : 'Kirim Notifikasi Email'}
+                        >
+                          <Mail className="w-4 h-4" />
+                        </button>
                         <button
                           type="button"
                           onClick={() => setDetailItem(item)}
@@ -2025,17 +2202,62 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
             </div>
 
             {/* Modal Bottom Bar */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <span className="text-[11px] text-slate-400 font-mono">
                 Dicatat: {detailItem.createdAt || '-'}
               </span>
-              <button
-                type="button"
-                onClick={() => setDetailItem(null)}
-                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl"
-              >
-                Tutup
-              </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <a
+                  href={createGoogleCalendarUrl(detailItem)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-2 text-xs font-bold text-white bg-[#1a73e8] hover:bg-[#1557b0] rounded-xl flex items-center gap-1.5 shadow-sm transition-colors"
+                  title="Jadwalkan di Google Calendar"
+                >
+                  <svg viewBox="0 0 48 48" className="w-3.5 h-3.5 shrink-0">
+                    <path fill="#fff" d="M38 44H10c-3.3 0-6-2.7-6-6V10c0-3.3 2.7-6 6-6h28c3.3 0 6 2.7 6 6v28c0 3.3-2.7 6-6 6z"/>
+                    <path fill="#4285F4" d="M10 8h28c1.1 0 2 .9 2 2v28c0 1.1-.9 2-2 2H10c-1.1 0-2-.9-2-2V10c0-1.1.9-2 2-2z"/>
+                    <path fill="#EA4335" d="M38 4H10C6.7 4 4 6.7 4 10v4h40v-4c0-3.3-2.7-6-6-6z"/>
+                    <path fill="#188038" d="M34 22h-6v-6h-4v6h-6v4h6v6h4v-6h6z"/>
+                  </svg>
+                  <span>Jadwalkan di Google Calendar</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedBookingForCalendar(detailItem);
+                    setIsGoogleCalendarModalOpen(true);
+                  }}
+                  className="px-3 py-2 text-xs font-semibold text-[#002B66] bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl flex items-center gap-1.5 transition-colors"
+                  title="Buka Opsi Kalender & Export"
+                >
+                  <CalendarDays className="w-3.5 h-3.5" />
+                  <span>Opsi Kalender</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedBookingForEmail(detailItem);
+                    setIsEmailModalOpen(true);
+                  }}
+                  className="px-3 py-2 text-xs font-bold text-white bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-700 hover:to-rose-800 rounded-xl flex items-center gap-1.5 shadow-sm transition-colors"
+                  title="Kirim Notifikasi Email Konfirmasi ke Sekolah"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>Kirim Notifikasi Email</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDetailItem(null)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl transition-colors"
+                >
+                  Tutup
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2240,6 +2462,27 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
             return onBulkImportEduventure(items, mode);
           }
           return bulkImportEduventure(items, mode);
+        }}
+      />
+
+      {/* Modal Google Calendar Sync */}
+      <GoogleCalendarSyncModal
+        isOpen={isGoogleCalendarModalOpen}
+        onClose={() => setIsGoogleCalendarModalOpen(false)}
+        bookings={eduventureList}
+        initialSelectedBooking={selectedBookingForCalendar}
+        onBookingUpdated={(updated) => {
+          onSaveEduventure(updated);
+        }}
+      />
+
+      {/* Modal Email Notification */}
+      <EduventureEmailNotificationModal
+        isOpen={isEmailModalOpen}
+        onClose={() => setIsEmailModalOpen(false)}
+        booking={selectedBookingForEmail}
+        onStatusUpdated={(updated) => {
+          onSaveEduventure(updated);
         }}
       />
     </div>

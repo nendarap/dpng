@@ -5,11 +5,13 @@ import {
   ArrowUpRight, School, Sparkles, Filter, RotateCcw, 
   CalendarDays, Table, LayoutGrid, FileSpreadsheet,
   Download, MessageCircle, ExternalLink, ChevronRight,
-  ShieldCheck, Banknote, MapPin
+  ShieldCheck, Banknote, MapPin, Mail
 } from 'lucide-react';
 import { EduventureBooking, UserRole } from '../types';
 import { UnpadLogo } from './UnpadLogo';
 import { EduventureMapView } from './EduventureMapView';
+import { createGoogleCalendarUrl } from '../services/googleCalendarService';
+import { buildEduventureEmailPayload, createGmailComposeUrl } from '../services/eduventureEmailNotificationService';
 
 interface EduventureDashboardViewProps {
   eduventureList: EduventureBooking[];
@@ -967,7 +969,7 @@ export const EduventureDashboardView: React.FC<EduventureDashboardViewProps> = (
                       </div>
                     </div>
 
-                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
                         item.statusBayar === 'Sudah'
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -975,9 +977,43 @@ export const EduventureDashboardView: React.FC<EduventureDashboardViewProps> = (
                       }`}>
                         {item.statusBayar === 'Sudah' ? 'Lunas' : 'Belum Bayar'}
                       </span>
-                      <span className="text-[10px] text-slate-500 font-semibold">
-                        {(Number(item.jumlahPeserta) || 0) + (Number(item.jumlahGuru) || 0)} Peserta
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <a
+                          href={createGoogleCalendarUrl(item)}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 text-[10px] font-bold text-[#1a73e8] hover:text-[#174ea6] px-1.5 py-0.5 rounded bg-blue-50 border border-blue-200 hover:bg-blue-100 transition-colors"
+                          title="Jadwalkan di Google Calendar (1-Klik)"
+                        >
+                          <svg viewBox="0 0 48 48" className="w-2.5 h-2.5">
+                            <path fill="#4285F4" d="M38 44H10c-3.3 0-6-2.7-6-6V10c0-3.3 2.7-6 6-6h28c3.3 0 6 2.7 6 6v28c0 3.3-2.7 6-6 6z"/>
+                            <path fill="#fff" d="M10 8h28c1.1 0 2 .9 2 2v28c0 1.1-.9 2-2 2H10c-1.1 0-2-.9-2-2V10c0-1.1.9-2 2-2z"/>
+                            <path fill="#EA4335" d="M38 4H10C6.7 4 4 6.7 4 10v4h40v-4c0-3.3-2.7-6-6-6z"/>
+                          </svg>
+                          <span>Google Cal</span>
+                          <ExternalLink className="w-2.5 h-2.5" />
+                        </a>
+
+                        <a
+                          href={(() => {
+                            const p = buildEduventureEmailPayload(item);
+                            return createGmailComposeUrl(p.to, p.subject, p.plainText, p.cc);
+                          })()}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded border transition-colors ${
+                            item.emailNotifikasiTerkirim
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                              : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+                          }`}
+                          title={item.emailNotifikasiTerkirim ? 'Email notifikasi sudah terkirim (Buka template)' : 'Kirim Email Konfirmasi via Gmail'}
+                        >
+                          <Mail className="w-2.5 h-2.5" />
+                          <span>{item.emailNotifikasiTerkirim ? 'Email ✓' : 'Email'}</span>
+                        </a>
+                      </div>
                     </div>
                   </div>
                 </div>

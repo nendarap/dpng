@@ -3,9 +3,12 @@ import {
   UserCheck, Plus, Search, Filter, Phone, Mail, 
   ExternalLink, Building2, Briefcase, GraduationCap, 
   Edit2, Trash2, CheckCircle2, XCircle, AlertTriangle, 
-  Users, MessageSquare, ShieldCheck, X
+  Users, MessageSquare, ShieldCheck, X, Download, Upload, 
+  FileSpreadsheet
 } from 'lucide-react';
 import { PicProgram, Program, Kategori, Peserta, UserRole } from '../types';
+import { PicExportModal } from './PicExportModal';
+import { PicImportModal } from './PicImportModal';
 
 interface PicKoordinatorViewProps {
   picList: PicProgram[];
@@ -15,6 +18,10 @@ interface PicKoordinatorViewProps {
   userRole: UserRole;
   onSavePic: (pic: PicProgram) => void;
   onDeletePic: (idPic: string) => void;
+  onBulkImportPic?: (
+    items: Array<Omit<PicProgram, 'idPic' | 'createdAt' | 'updatedAt'> & { idPic?: string }>,
+    mode: 'skip' | 'update' | 'force'
+  ) => { success: boolean; message: string; count: number };
   onNavigateToPeserta?: (picName: string) => void;
 }
 
@@ -61,6 +68,7 @@ export const PicKoordinatorView: React.FC<PicKoordinatorViewProps> = ({
   userRole,
   onSavePic,
   onDeletePic,
+  onBulkImportPic,
   onNavigateToPeserta,
 }) => {
   const [searchKw, setSearchKw] = useState('');
@@ -71,6 +79,8 @@ export const PicKoordinatorView: React.FC<PicKoordinatorViewProps> = ({
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState<PicProgram | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PicProgram | null>(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   // Form State
   const [namaLengkap, setNamaLengkap] = useState('');
@@ -226,16 +236,40 @@ export const PicKoordinatorView: React.FC<PicKoordinatorViewProps> = ({
           </p>
         </div>
 
-        {userRole !== 'VIEWER' && (
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <button
-            id="btn-tambah-pic"
-            onClick={handleOpenAdd}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#002B66] hover:bg-[#083a7e] text-white rounded-lg text-xs font-bold shadow-xs transition-all cursor-pointer shrink-0"
+            type="button"
+            onClick={() => setIsExportModalOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold border border-slate-200 shadow-2xs transition-all cursor-pointer"
+            title="Export data PIC ke file Excel (.xlsx) atau CSV"
           >
-            <Plus className="w-4 h-4 text-[#FDB913]" />
-            <span>Tambah PIC / Koordinator</span>
+            <Download className="w-4 h-4 text-blue-600" />
+            <span>Export PIC</span>
           </button>
-        )}
+
+          {userRole !== 'VIEWER' && (
+            <button
+              type="button"
+              onClick={() => setIsImportModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold border border-slate-200 shadow-2xs transition-all cursor-pointer"
+              title="Import data PIC dari berkas Excel (.xlsx) atau CSV"
+            >
+              <Upload className="w-4 h-4 text-emerald-600" />
+              <span>Import PIC</span>
+            </button>
+          )}
+
+          {userRole !== 'VIEWER' && (
+            <button
+              id="btn-tambah-pic"
+              onClick={handleOpenAdd}
+              className="flex items-center gap-2 px-4 py-2.5 bg-[#002B66] hover:bg-[#083a7e] text-white rounded-lg text-xs font-bold shadow-xs transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4 text-[#FDB913]" />
+              <span>Tambah PIC Baru</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* KPI Cards */}

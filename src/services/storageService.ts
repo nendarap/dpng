@@ -715,6 +715,108 @@ export function deletePic(idPic: string): { success: boolean; message: string } 
   return { success: true, message: `PIC ${target.namaLengkap} berhasil dihapus dari database.` };
 }
 
+export function bulkImportPic(
+  items: Array<Omit<PicProgram, 'idPic' | 'createdAt' | 'updatedAt'> & { idPic?: string }>,
+  mode: 'skip' | 'update' | 'force' = 'skip'
+): { 
+  success: boolean; 
+  message: string; 
+  count: number; 
+  updatedCount: number; 
+  skippedCount: number; 
+  data: PicProgram[] 
+} {
+  const list = getPic();
+  const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  let count = 0;
+  let updatedCount = 0;
+  let skippedCount = 0;
+
+  // Determine maximum existing numeric sequence in PIC-XXX
+  let maxSeq = 0;
+  list.forEach(p => {
+    if (p.idPic && p.idPic.startsWith('PIC-')) {
+      const num = parseInt(p.idPic.replace('PIC-', ''), 10);
+      if (!isNaN(num) && num > maxSeq) maxSeq = num;
+    }
+  });
+
+  for (const item of items) {
+    if (!item.namaLengkap || !item.namaLengkap.trim()) continue;
+
+    // Check duplicate by idPic, email, or (namaLengkap + unitFakultas)
+    const existingIndex = list.findIndex(p => {
+      if (item.idPic && p.idPic && p.idPic.toLowerCase() === item.idPic.toLowerCase()) return true;
+      if (item.email && item.email.trim() && p.email && p.email.toLowerCase() === item.email.trim().toLowerCase()) return true;
+      if (p.namaLengkap.toLowerCase().trim() === item.namaLengkap.toLowerCase().trim() &&
+          (p.unitFakultas || '').toLowerCase().trim() === (item.unitFakultas || '').toLowerCase().trim()) return true;
+      return false;
+    });
+
+    if (existingIndex >= 0) {
+      if (mode === 'skip') {
+        skippedCount++;
+        continue;
+      }
+      if (mode === 'update') {
+        list[existingIndex] = {
+          ...list[existingIndex],
+          ...item,
+          idPic: list[existingIndex].idPic,
+          updatedAt: now
+        };
+        updatedCount++;
+        continue;
+      }
+      // If 'force', fall through to insert as new record
+    }
+
+    maxSeq++;
+    const newId = item.idPic && item.idPic.startsWith('PIC-') && !list.some(p => p.idPic === item.idPic)
+      ? item.idPic
+      : `PIC-${String(maxSeq).padStart(3, '0')}`;
+
+    const newPic: PicProgram = {
+      ...item,
+      idPic: newId,
+      namaLengkap: item.namaLengkap.trim(),
+      gelarDepan: item.gelarDepan || '',
+      gelarBelakang: item.gelarBelakang || '',
+      nip: item.nip || '',
+      email: item.email || '',
+      nomorHp: item.nomorHp || '',
+      jabatan: item.jabatan || 'Koordinator Program',
+      unitFakultas: item.unitFakultas || 'Direktorat Pendidikan Non Gelar',
+      idProgramUtama: item.idProgramUtama || '',
+      namaProgramUtama: item.namaProgramUtama || '',
+      statusAktif: item.statusAktif !== undefined ? item.statusAktif : 'Ya',
+      keterangan: item.keterangan || '',
+      createdAt: now,
+      updatedAt: now
+    };
+
+    list.push(newPic);
+    count++;
+  }
+
+  localStorage.setItem(STORAGE_KEYS.PIC, JSON.stringify(list));
+  writeLog(
+    'Import PIC',
+    'PIC',
+    `${count + updatedCount} Data`,
+    `Import data PIC/Koordinator: ${count} ditambah, ${updatedCount} diperbarui, ${skippedCount} dilewati.`
+  );
+
+  return {
+    success: true,
+    count,
+    updatedCount,
+    skippedCount,
+    message: `Berhasil mengimport data PIC/Koordinator! ${count} data baru ditambahkan, ${updatedCount} diperbarui${skippedCount > 0 ? `, ${skippedCount} data dilewati` : ''}.`,
+    data: list
+  };
+}
+
 // Peserta CRUD & Concurrency ID Protection
 export function generateNextIdPeserta(tahun?: number): string {
   const yr = tahun || new Date().getFullYear();
@@ -1042,6 +1144,29 @@ export function deleteEduventure(id: string): { success: boolean; message: strin
   localStorage.setItem(STORAGE_KEYS.EDUVENTURE, JSON.stringify(updated));
   writeLog('Hapus Eduventure', 'EDUVENTURE', id, `Hapus kunjungan ${target.namaSekolah} (ID: ${id})`);
   return { success: true, message: `Kunjungan ${target.namaSekolah} berhasil dihapus.` };
+}
+
+export function updateEduventureCalendarAndEmailStatus(
+  id: string,
+  updates: {
+    googleCalendarEventId?: string;
+    googleCalendarHtmlLink?: string;
+    googleCalendarSyncedAt?: string;
+    emailNotifikasiTerkirim?: boolean;
+    emailNotifikasiTanggal?: string;
+    emailNotifikasiPenerima?: string;
+  }
+): { success: boolean; data?: EduventureBooking } {
+  const list = getEduventure();
+  const idx = list.findIndex(b => b.id === id);
+  if (idx < 0) return { success: false };
+  list[idx] = {
+    ...list[idx],
+    ...updates,
+    updatedAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
+  };
+  localStorage.setItem(STORAGE_KEYS.EDUVENTURE, JSON.stringify(list));
+  return { success: true, data: list[idx] };
 }
 
 export function bulkImportEduventure(

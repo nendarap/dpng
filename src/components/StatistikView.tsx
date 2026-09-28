@@ -4,6 +4,7 @@ import {
   Award, Building2, Layers, CheckCircle2
 } from 'lucide-react';
 import { Peserta, Kategori, Program } from '../types';
+import { TrenPendaftarChart } from './TrenPendaftarChart';
 
 interface StatistikViewProps {
   pesertaList: Peserta[];
@@ -105,6 +106,9 @@ export const StatistikView: React.FC<StatistikViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Visualisasi Data Tren Pendaftar per Bulan Menggunakan Recharts */}
+      <TrenPendaftarChart pesertaList={pesertaList} kategoriList={kategoriList} />
 
       {/* Cross-Tabulation Table: Kategori x Tahun */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
