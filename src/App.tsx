@@ -27,7 +27,7 @@ import {
   EduventureBooking, GroupAkun, MenuPrivilege, AppMenuId, AppThemeId
 } from './types';
 import { 
-  getPeserta, createPeserta, updatePeserta, deletePeserta,
+  getPeserta, createPeserta, updatePeserta, deletePeserta, deleteMultiplePeserta, updateMultiplePesertaStatus,
   getKategori, saveKategori, deleteKategori,
   getProgram, saveProgram, deleteProgram,
   getPic, savePic, deletePic,
@@ -225,6 +225,26 @@ export default function App() {
     const res = deletePeserta(id);
     if (res.success) {
       showToast('Data peserta berhasil dihapus dari database Google Sheets.');
+      refreshAllData();
+    } else {
+      showToast(res.message, 'error');
+    }
+  };
+
+  const handleDeleteMultiplePeserta = (ids: string[]) => {
+    const res = deleteMultiplePeserta(ids);
+    if (res.success) {
+      showToast(res.message);
+      refreshAllData();
+    } else {
+      showToast(res.message, 'error');
+    }
+  };
+
+  const handleUpdateMultiplePesertaStatus = (ids: string[], newStatus: string) => {
+    const res = updateMultiplePesertaStatus(ids, newStatus);
+    if (res.success) {
+      showToast(res.message);
       refreshAllData();
     } else {
       showToast(res.message, 'error');
@@ -496,6 +516,8 @@ export default function App() {
                     setActiveTab('tambah');
                   }}
                   onDeletePeserta={handleDeletePeserta}
+                  onDeleteMultiplePeserta={handleDeleteMultiplePeserta}
+                  onUpdateMultipleStatus={handleUpdateMultiplePesertaStatus}
                   onNavigateTambah={() => {
                     setEditPeserta(null);
                     setActiveTab('tambah');

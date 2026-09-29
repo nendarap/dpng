@@ -951,6 +951,78 @@ export function deletePeserta(id: string): { success: boolean; message: string }
   return { success: true, message: 'Data peserta berhasil dihapus' };
 }
 
+export function deleteMultiplePeserta(ids: string[]): { success: boolean; count: number; message: string } {
+  if (!ids || ids.length === 0) {
+    return { success: false, count: 0, message: 'Tidak ada data peserta yang dipilih untuk dihapus' };
+  }
+  const idSet = new Set(ids);
+  const list = getPeserta();
+  const toDelete = list.filter(p => idSet.has(p.id));
+  if (toDelete.length === 0) {
+    return { success: false, count: 0, message: 'Data peserta yang dipilih tidak ditemukan' };
+  }
+
+  const filtered = list.filter(p => !idSet.has(p.id));
+  localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(filtered));
+  writeLog(
+    'Hapus Peserta Massal',
+    'PESERTA',
+    `BULK-${toDelete.length}`,
+    `Hapus massal ${toDelete.length} peserta: ${toDelete.slice(0, 5).map(p => p.id).join(', ')}${toDelete.length > 5 ? '...' : ''}`
+  );
+
+  return { 
+    success: true, 
+    count: toDelete.length, 
+    message: `Berhasil menghapus ${toDelete.length} data peserta dari database.` 
+  };
+}
+
+export function updateMultiplePesertaStatus(
+  ids: string[],
+  newStatus: string
+): { success: boolean; count: number; message: string } {
+  if (!ids || ids.length === 0) {
+    return { success: false, count: 0, message: 'Tidak ada data peserta yang dipilih' };
+  }
+  const idSet = new Set(ids);
+  const list = getPeserta();
+  const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  const currentUser = getCurrentUser().email;
+  let count = 0;
+
+  const updatedList = list.map(p => {
+    if (idSet.has(p.id)) {
+      count++;
+      return {
+        ...p,
+        statusPeserta: newStatus as any,
+        updatedAt: now,
+        updatedBy: currentUser
+      };
+    }
+    return p;
+  });
+
+  if (count === 0) {
+    return { success: false, count: 0, message: 'Data peserta yang dipilih tidak ditemukan' };
+  }
+
+  localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(updatedList));
+  writeLog(
+    'Ubah Status Peserta Massal',
+    'PESERTA',
+    `BULK-${count}`,
+    `Ubah status ${count} peserta terpilih menjadi "${newStatus}"`
+  );
+
+  return {
+    success: true,
+    count,
+    message: `Berhasil memperbarui status ${count} data peserta menjadi "${newStatus}".`
+  };
+}
+
 export function bulkImportPeserta(
   items: Array<Partial<Peserta>>,
   mode: 'skip' | 'update' | 'force' = 'skip'
