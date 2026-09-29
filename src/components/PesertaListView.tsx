@@ -2,9 +2,11 @@ import React, { useState, useMemo } from 'react';
 import { 
   Search, Eye, Edit2, Trash2, Plus, Download, 
   ChevronLeft, ChevronRight, SlidersHorizontal, 
-  FileText, CheckSquare, Square, AlertTriangle
+  FileText, CheckSquare, Square, AlertTriangle,
+  Upload, CheckCircle2, X
 } from 'lucide-react';
-import { Peserta, UserRole } from '../types';
+import { Peserta, UserRole, Kategori, Program } from '../types';
+import { PesertaImportModal } from './PesertaImportModal';
 
 interface PesertaListViewProps {
   pesertaList: Peserta[];
@@ -14,6 +16,9 @@ interface PesertaListViewProps {
   onDeletePeserta: (id: string) => void;
   onNavigateTambah: () => void;
   onExport: () => void;
+  onRefreshData?: () => void;
+  kategoriList?: Kategori[];
+  programList?: Program[];
 }
 
 export const PesertaListView: React.FC<PesertaListViewProps> = ({
@@ -24,11 +29,18 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
   onDeletePeserta,
   onNavigateTambah,
   onExport,
+  onRefreshData,
+  kategoriList = [],
+  programList = [],
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [kategoriFilter, setKategoriFilter] = useState('ALL');
   const [tahunFilter, setTahunFilter] = useState('ALL');
+  
+  // Import Modal State
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importToast, setImportToast] = useState<{ show: boolean; message: string } | null>(null);
   
   // Sorting
   const [sortField, setSortField] = useState<keyof Peserta>('createdAt');
@@ -132,10 +144,22 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
+          {userRole !== 'VIEWER' && (
+            <button
+              id="btn-import-peserta"
+              onClick={() => setIsImportModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold transition-colors border border-emerald-300 shadow-2xs cursor-pointer"
+              title="Import data peserta dari file Excel (.xlsx) atau CSV (.csv)"
+            >
+              <Upload className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Import Excel / CSV</span>
+            </button>
+          )}
+
           <button
             id="btn-export-peserta"
             onClick={onExport}
-            className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-200"
+            className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-200 cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Export</span>
@@ -145,7 +169,7 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
             <button
               id="btn-tambah-peserta-table"
               onClick={onNavigateTambah}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-[#002B66] hover:bg-[#083a7e] text-white rounded-lg text-xs font-semibold shadow-xs transition-colors"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-[#002B66] hover:bg-[#083a7e] text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
             >
               <Plus className="w-4 h-4 text-[#FDB913]" />
               <span>Tambah Peserta</span>
@@ -153,6 +177,23 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
           )}
         </div>
       </div>
+
+      {/* Import Toast Alert */}
+      {importToast && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 flex items-center justify-between text-xs text-emerald-800 animate-in fade-in duration-200 shadow-xs">
+          <div className="flex items-center gap-2 font-medium">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{importToast.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setImportToast(null)}
+            className="text-emerald-700 hover:text-emerald-900 font-bold p-1 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Filter Chips & Search Bar */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
@@ -546,6 +587,23 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal Import Data Peserta Excel & CSV */}
+      <PesertaImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        existingPeserta={pesertaList}
+        kategoriList={kategoriList}
+        programList={programList}
+        onImportSuccess={(res) => {
+          if (onRefreshData) onRefreshData();
+          setImportToast({
+            show: true,
+            message: `Import berhasil! ${res.count} data baru ditambahkan, ${res.updatedCount} data diperbarui${res.skippedCount > 0 ? `, ${res.skippedCount} data duplikat dilewati` : ''}.`
+          });
+          setTimeout(() => setImportToast(null), 6000);
+        }}
+      />
     </div>
   );
 };

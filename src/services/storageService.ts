@@ -951,6 +951,153 @@ export function deletePeserta(id: string): { success: boolean; message: string }
   return { success: true, message: 'Data peserta berhasil dihapus' };
 }
 
+export function bulkImportPeserta(
+  items: Array<Partial<Peserta>>,
+  mode: 'skip' | 'update' | 'force' = 'skip'
+): { 
+  success: boolean; 
+  message: string; 
+  count: number; 
+  updatedCount: number; 
+  skippedCount: number; 
+  data: Peserta[] 
+} {
+  const list = getPeserta();
+  const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  const currentUser = getCurrentUser().email;
+  let count = 0;
+  let updatedCount = 0;
+  let skippedCount = 0;
+
+  // Track ID sequence per year to avoid collisions
+  const seqMap = new Map<number, number>();
+  const getNextBatchId = (yr: number) => {
+    if (!seqMap.has(yr)) {
+      const prefix = `DPNG-${yr}-`;
+      let maxSeq = 0;
+      list.forEach(p => {
+        if (p.id && p.id.startsWith(prefix)) {
+          const num = parseInt(p.id.replace(prefix, ''), 10);
+          if (!isNaN(num) && num > maxSeq) maxSeq = num;
+        }
+      });
+      seqMap.set(yr, maxSeq);
+    }
+    const currentMax = seqMap.get(yr)! + 1;
+    seqMap.set(yr, currentMax);
+    return `DPNG-${yr}-${String(currentMax).padStart(6, '0')}`;
+  };
+
+  for (const item of items) {
+    if (!item.namaLengkap || !item.namaLengkap.trim()) {
+      skippedCount++;
+      continue;
+    }
+
+    // Match duplicate: by id, or NIK, or NIP, or email, or nomorRegistrasi
+    const existingIndex = list.findIndex(p => {
+      if (item.id && p.id.toLowerCase() === item.id.toLowerCase()) return true;
+      if (item.nik && item.nik.trim() && p.nik && p.nik.trim() === item.nik.trim()) return true;
+      if (item.nip && item.nip.trim() && p.nip && p.nip.trim() === item.nip.trim()) return true;
+      if (item.email && item.email.trim() && p.email && p.email.toLowerCase().trim() === item.email.toLowerCase().trim()) return true;
+      if (item.nomorRegistrasi && item.nomorRegistrasi.trim() && p.nomorRegistrasi && p.nomorRegistrasi.trim() === item.nomorRegistrasi.trim()) return true;
+      return false;
+    });
+
+    if (existingIndex >= 0) {
+      if (mode === 'skip') {
+        skippedCount++;
+        continue;
+      }
+      if (mode === 'update') {
+        list[existingIndex] = {
+          ...list[existingIndex],
+          ...item,
+          id: list[existingIndex].id, // preserve existing ID
+          updatedAt: now,
+          updatedBy: currentUser,
+          statusData: 'Aktif'
+        };
+        updatedCount++;
+        continue;
+      }
+      // If mode === 'force', proceed to create as a new record with new ID
+    }
+
+    const yr = Number(item.tahun) || new Date().getFullYear();
+    const newId = item.id && !list.some(p => p.id === item.id) ? item.id : getNextBatchId(yr);
+    const numPart = newId.split('-')[2] || String(list.length + 1).padStart(6, '0');
+    const nomorReg = item.nomorRegistrasi && item.nomorRegistrasi.trim()
+      ? item.nomorRegistrasi.trim()
+      : `REG-${yr}-${numPart}`;
+
+    const newPeserta: Peserta = {
+      id: newId,
+      nomorRegistrasi: nomorReg,
+      nik: item.nik ? String(item.nik).trim() : '',
+      nip: item.nip ? String(item.nip).trim() : '',
+      namaLengkap: item.namaLengkap.trim(),
+      gelarDepan: item.gelarDepan ? String(item.gelarDepan).trim() : '',
+      gelarBelakang: item.gelarBelakang ? String(item.gelarBelakang).trim() : '',
+      jenisKelamin: item.jenisKelamin === 'Perempuan' ? 'Perempuan' : 'Laki-laki',
+      tempatLahir: item.tempatLahir ? String(item.tempatLahir).trim() : '',
+      tanggalLahir: item.tanggalLahir ? String(item.tanggalLahir).trim() : '',
+      email: item.email ? String(item.email).trim() : '',
+      nomorHp: item.nomorHp ? String(item.nomorHp).trim() : '',
+      instansi: item.instansi ? String(item.instansi).trim() : '',
+      jabatan: item.jabatan ? String(item.jabatan).trim() : '',
+      fakultasUnit: item.fakultasUnit ? String(item.fakultasUnit).trim() : '',
+      pendidikanTerakhir: item.pendidikanTerakhir ? String(item.pendidikanTerakhir).trim() : 'Diploma IV (D4) / Sarjana (S1)',
+      provinsi: item.provinsi ? String(item.provinsi).trim() : 'Jawa Barat',
+      kotaKabupaten: item.kotaKabupaten ? String(item.kotaKabupaten).trim() : '',
+      alamat: item.alamat ? String(item.alamat).trim() : '',
+      idKategori: item.idKategori || '',
+      kategoriProgram: item.kategoriProgram || 'Luhung',
+      idProgram: item.idProgram || '',
+      namaProgram: item.namaProgram || 'Pendidikan Non Gelar Unpad',
+      angkatanBatch: item.angkatanBatch || 'Batch 1',
+      tahun: yr,
+      tanggalMulai: item.tanggalMulai ? String(item.tanggalMulai).trim() : '',
+      tanggalSelesai: item.tanggalSelesai ? String(item.tanggalSelesai).trim() : '',
+      statusPeserta: (item.statusPeserta as any) || 'Terdaftar',
+      statusKelulusan: (item.statusKelulusan as any) || 'Belum Evaluasi',
+      nomorSertifikat: item.nomorSertifikat ? String(item.nomorSertifikat).trim() : '',
+      tanggalSertifikat: item.tanggalSertifikat ? String(item.tanggalSertifikat).trim() : '',
+      nilaiSkor: item.nilaiSkor ? String(item.nilaiSkor).trim() : '',
+      biayaProgram: Number(item.biayaProgram) || 0,
+      sumberDana: item.sumberDana || 'Mandiri / Pribadi',
+      idPic: item.idPic || '',
+      pic: item.pic || '',
+      keterangan: item.keterangan || 'Import Batch File',
+      createdAt: item.createdAt || now,
+      createdBy: currentUser,
+      updatedAt: now,
+      updatedBy: currentUser,
+      statusData: 'Aktif'
+    };
+
+    list.unshift(newPeserta);
+    count++;
+  }
+
+  localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(list));
+  writeLog(
+    'Import Peserta',
+    'PESERTA',
+    `${count + updatedCount} Data`,
+    `Import data peserta: ${count} baru, ${updatedCount} diperbarui${skippedCount > 0 ? `, ${skippedCount} dilewati` : ''}. Mode: ${mode}`
+  );
+
+  return {
+    success: true,
+    count,
+    updatedCount,
+    skippedCount,
+    message: `Berhasil mengimport data peserta! ${count} data baru ditambahkan, ${updatedCount} data diperbarui${skippedCount > 0 ? `, ${skippedCount} data dilewati` : ''}.`,
+    data: list
+  };
+}
+
 // Advanced Search
 export function advancedSearchPeserta(filters: Partial<AdvancedSearchFilter>): Peserta[] {
   let list = getPeserta();

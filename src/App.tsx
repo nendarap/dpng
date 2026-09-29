@@ -488,6 +488,8 @@ export default function App() {
                 <PesertaListView
                   pesertaList={pesertaList}
                   userRole={currentUser.role}
+                  kategoriList={kategoriList}
+                  programList={programList}
                   onViewDetail={(p) => setDetailPeserta(p)}
                   onEditPeserta={(p) => {
                     setEditPeserta(p);
@@ -499,6 +501,7 @@ export default function App() {
                     setActiveTab('tambah');
                   }}
                   onExport={() => setActiveTab('export')}
+                  onRefreshData={refreshAllData}
                 />
               )}
 
