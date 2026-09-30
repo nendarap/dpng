@@ -3,12 +3,12 @@ import {
   AdvancedSearchFilter, UserRole, PicProgram, EduventureBooking,
   GroupAkun, MenuPrivilege, AppMenuItemDef, AppThemeId, LoginSettings,
   SimpendikBackupPayload, SimpendikBackupData, SimpendikBackupSummary,
-  BackupSnapshotItem, RestoreMode
+  BackupSnapshotItem, RestoreMode, Pegawai
 } from '../types';
 import { 
   DEFAULT_KATEGORI, DEFAULT_PROGRAM, DEFAULT_PESERTA, 
   DEFAULT_USERS, DEFAULT_LOGS, DEFAULT_SETTING, DEFAULT_PIC,
-  DEFAULT_EDUVENTURE, DEFAULT_TEMPAT_EDUVENTURE
+  DEFAULT_EDUVENTURE, DEFAULT_TEMPAT_EDUVENTURE, DEFAULT_PEGAWAI
 } from '../data/initialData';
 import { DEFAULT_GROUPS, APP_MENU_DEFINITIONS, ROLE_PRESET_MAP } from '../data/privilegeData';
 import { DEFAULT_LOGIN_SETTINGS } from '../data/loginPresets';
@@ -18,6 +18,7 @@ const STORAGE_KEYS = {
   KATEGORI: 'simpendik_unpad_kategori',
   PROGRAM: 'simpendik_unpad_program',
   PIC: 'simpendik_unpad_pic',
+  PEGAWAI: 'simpendik_unpad_pegawai',
   EDUVENTURE: 'simpendik_unpad_eduventure',
   TEMPAT_EDUVENTURE: 'simpendik_unpad_tempat_eduventure',
   USERS: 'simpendik_unpad_users',
@@ -43,6 +44,9 @@ export function initLocalStorage(): void {
   }
   if (!localStorage.getItem(STORAGE_KEYS.PIC)) {
     localStorage.setItem(STORAGE_KEYS.PIC, JSON.stringify(DEFAULT_PIC));
+  }
+  if (!localStorage.getItem(STORAGE_KEYS.PEGAWAI)) {
+    localStorage.setItem(STORAGE_KEYS.PEGAWAI, JSON.stringify(DEFAULT_PEGAWAI));
   }
   if (!localStorage.getItem(STORAGE_KEYS.EDUVENTURE)) {
     localStorage.setItem(STORAGE_KEYS.EDUVENTURE, JSON.stringify(DEFAULT_EDUVENTURE));
@@ -817,6 +821,249 @@ export function bulkImportPic(
   };
 }
 
+// ==========================================
+// PEGAWAI CRUD & SERVICES (Master Data Program)
+// ==========================================
+
+export function getPegawai(): Pegawai[] {
+  initLocalStorage();
+  const raw = localStorage.getItem(STORAGE_KEYS.PEGAWAI);
+  if (!raw) return DEFAULT_PEGAWAI;
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    console.error('Error parsing Pegawai from localStorage:', e);
+    return DEFAULT_PEGAWAI;
+  }
+}
+
+export function getPegawaiById(id: string): Pegawai | undefined {
+  return getPegawai().find(p => p.id === id);
+}
+
+export function savePegawai(pegawai: Pegawai): { success: boolean; message: string; data: Pegawai } {
+  const list = getPegawai();
+  const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  const idx = list.findIndex(p => p.id === pegawai.id);
+
+  if (idx >= 0) {
+    list[idx] = {
+      ...pegawai,
+      updatedAt: now
+    };
+    localStorage.setItem(STORAGE_KEYS.PEGAWAI, JSON.stringify(list));
+    writeLog('Edit Pegawai', 'PEGAWAI', pegawai.id, `Update pegawai ${pegawai.nama} (NIP: ${pegawai.nip})`);
+    return { success: true, message: `Data pegawai ${pegawai.nama} berhasil diperbarui!`, data: list[idx] };
+  } else {
+    // Generate sequential ID: PEG-001, PEG-002, etc.
+    let maxSeq = 0;
+    list.forEach(p => {
+      if (p.id && p.id.startsWith('PEG-')) {
+        const num = parseInt(p.id.replace('PEG-', ''), 10);
+        if (!isNaN(num) && num > maxSeq) maxSeq = num;
+      }
+    });
+    const newId = `PEG-${String(maxSeq + 1).padStart(3, '0')}`;
+    const newPegawai: Pegawai = {
+      ...pegawai,
+      id: newId,
+      no: maxSeq + 1,
+      createdAt: now,
+      updatedAt: now
+    };
+    list.push(newPegawai);
+    localStorage.setItem(STORAGE_KEYS.PEGAWAI, JSON.stringify(list));
+    writeLog('Tambah Pegawai', 'PEGAWAI', newId, `Tambah pegawai baru ${newPegawai.nama} (NIP: ${newPegawai.nip})`);
+    return { success: true, message: `Pegawai baru ${newPegawai.nama} berhasil ditambahkan!`, data: newPegawai };
+  }
+}
+
+export function createPegawai(data: Partial<Pegawai>): { success: boolean; message: string; data?: Pegawai } {
+  return savePegawai(data as Pegawai);
+}
+
+export function updatePegawai(id: string, data: Partial<Pegawai>): { success: boolean; message: string; data?: Pegawai } {
+  const list = getPegawai();
+  const idx = list.findIndex(p => p.id === id);
+  if (idx < 0) {
+    return { success: false, message: 'Data pegawai tidak ditemukan.' };
+  }
+  const updated: Pegawai = {
+    ...list[idx],
+    ...data,
+    id,
+    updatedAt: new Date().toISOString().replace('T', ' ').substring(0, 19)
+  };
+  list[idx] = updated;
+  localStorage.setItem(STORAGE_KEYS.PEGAWAI, JSON.stringify(list));
+  writeLog('Edit Pegawai', 'PEGAWAI', id, `Update data pegawai ${updated.nama}`);
+  return { success: true, message: `Data pegawai ${updated.nama} berhasil diperbarui!`, data: updated };
+}
+
+export function deletePegawai(id: string): { success: boolean; message: string } {
+  const list = getPegawai();
+  const target = list.find(p => p.id === id);
+  if (!target) {
+    return { success: false, message: 'Data pegawai tidak ditemukan.' };
+  }
+
+  const updated = list.filter(p => p.id !== id);
+  localStorage.setItem(STORAGE_KEYS.PEGAWAI, JSON.stringify(updated));
+  writeLog('Hapus Pegawai', 'PEGAWAI', id, `Hapus pegawai ${target.nama} (NIP: ${target.nip})`);
+  return { success: true, message: `Data pegawai ${target.nama} berhasil dihapus dari database.` };
+}
+
+export function deleteMultiplePegawai(ids: string[]): { success: boolean; count: number; message: string } {
+  if (!ids || ids.length === 0) {
+    return { success: false, count: 0, message: 'Tidak ada data pegawai yang dipilih untuk dihapus.' };
+  }
+  const idSet = new Set(ids);
+  const list = getPegawai();
+  const toDelete = list.filter(p => idSet.has(p.id));
+  if (toDelete.length === 0) {
+    return { success: false, count: 0, message: 'Data pegawai yang dipilih tidak ditemukan.' };
+  }
+
+  const filtered = list.filter(p => !idSet.has(p.id));
+  localStorage.setItem(STORAGE_KEYS.PEGAWAI, JSON.stringify(filtered));
+  writeLog(
+    'Hapus Pegawai Massal',
+    'PEGAWAI',
+    `BULK-${toDelete.length}`,
+    `Hapus massal ${toDelete.length} pegawai: ${toDelete.slice(0, 5).map(p => p.nama).join(', ')}${toDelete.length > 5 ? '...' : ''}`
+  );
+
+  return {
+    success: true,
+    count: toDelete.length,
+    message: `Berhasil menghapus ${toDelete.length} data pegawai dari database.`
+  };
+}
+
+export function bulkImportPegawai(
+  items: Array<Partial<Pegawai>>,
+  mode: 'skip' | 'update' | 'force' = 'skip'
+): {
+  success: boolean;
+  message: string;
+  count: number;
+  updatedCount: number;
+  skippedCount: number;
+  data: Pegawai[];
+} {
+  const list = getPegawai();
+  const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  let count = 0;
+  let updatedCount = 0;
+  let skippedCount = 0;
+
+  let maxSeq = 0;
+  list.forEach(p => {
+    if (p.id && p.id.startsWith('PEG-')) {
+      const num = parseInt(p.id.replace('PEG-', ''), 10);
+      if (!isNaN(num) && num > maxSeq) maxSeq = num;
+    }
+  });
+
+  items.forEach(item => {
+    const nip = String(item.nip || '').trim();
+    const nama = String(item.nama || '').trim();
+    if (!nama) return;
+
+    // Duplicate check by NIP or ID
+    const existingIdx = list.findIndex(p => 
+      (nip && p.nip === nip) || 
+      (item.id && p.id === item.id)
+    );
+
+    if (existingIdx >= 0) {
+      if (mode === 'skip') {
+        skippedCount++;
+        return;
+      } else if (mode === 'update') {
+        list[existingIdx] = {
+          ...list[existingIdx],
+          ...item,
+          updatedAt: now
+        };
+        updatedCount++;
+        return;
+      }
+    }
+
+    maxSeq++;
+    const newId = `PEG-${String(maxSeq).padStart(3, '0')}`;
+    const newPegawai: Pegawai = {
+      id: newId,
+      no: maxSeq,
+      nip: nip || '-',
+      nama,
+      kartuPegawai: item.kartuPegawai || '',
+      statusKepegawaian: item.statusKepegawaian || 'PNS',
+      unitKerja: item.unitKerja || 'Direktorat Pendidikan Non Gelar',
+      bagian: item.bagian || '',
+      bidangKerja: item.bidangKerja || '',
+      nidnNuptk: item.nidnNuptk || '',
+      statusAktif: item.statusAktif || 'Aktif',
+      keteranganStatusAktif: item.keteranganStatusAktif || '',
+      tanggalDitetapkanStatus: item.tanggalDitetapkanStatus || '',
+      tempatLahir: item.tempatLahir || '',
+      tanggalLahir: item.tanggalLahir || '',
+      jenisKelamin: item.jenisKelamin || 'Laki-laki',
+      agama: item.agama || 'Islam',
+      golonganDarah: item.golonganDarah || '',
+      sukuBangsa: item.sukuBangsa || '',
+      kewarganegaraan: item.kewarganegaraan || 'WNI',
+      statusMarital: item.statusMarital || 'Kawin',
+      alamat: item.alamat || '',
+      kecamatan: item.kecamatan || '',
+      kelurahan: item.kelurahan || '',
+      rt: item.rt || '',
+      rw: item.rw || '',
+      kota: item.kota || '',
+      propinsi: item.propinsi || '',
+      kodePos: item.kodePos || '',
+      telepon: item.telepon || '',
+      hp: item.hp || '',
+      email: item.email || '',
+      lembagaPendidikan: item.lembagaPendidikan || '',
+      jenjang: item.jenjang || '',
+      jurusan: item.jurusan || '',
+      tempat: item.tempat || '',
+      tahunLulus: item.tahunLulus || '',
+      gelarDepan: item.gelarDepan || '',
+      gelarBelakang: item.gelarBelakang || '',
+      pangkat: item.pangkat || '',
+      golongan: item.golongan || '',
+      jabatanStruktural: item.jabatanStruktural || '',
+      periode: item.periode || '',
+      unitKerjaJabatanStruktural: item.unitKerjaJabatanStruktural || '',
+      jabatanFungsional: item.jabatanFungsional || '',
+      createdAt: now,
+      updatedAt: now
+    };
+    list.push(newPegawai);
+    count++;
+  });
+
+  localStorage.setItem(STORAGE_KEYS.PEGAWAI, JSON.stringify(list));
+  writeLog(
+    'Import Pegawai',
+    'PEGAWAI',
+    `BULK-${count + updatedCount}`,
+    `Import data pegawai via Excel/CSV: ${count} ditambah, ${updatedCount} diperbarui, ${skippedCount} dilewati.`
+  );
+
+  return {
+    success: true,
+    message: `Berhasil mengimpor data pegawai! ${count} data baru ditambahkan, ${updatedCount} diperbarui${skippedCount > 0 ? `, ${skippedCount} data dilewati` : ''}.`,
+    count,
+    updatedCount,
+    skippedCount,
+    data: list
+  };
+}
+
 // Peserta CRUD & Concurrency ID Protection
 export function generateNextIdPeserta(tahun?: number): string {
   const yr = tahun || new Date().getFullYear();
@@ -1517,13 +1764,14 @@ export function initializeDatabaseToDefaults(): void {
   localStorage.setItem(STORAGE_KEYS.KATEGORI, JSON.stringify(DEFAULT_KATEGORI));
   localStorage.setItem(STORAGE_KEYS.PROGRAM, JSON.stringify(DEFAULT_PROGRAM));
   localStorage.setItem(STORAGE_KEYS.PIC, JSON.stringify(DEFAULT_PIC));
+  localStorage.setItem(STORAGE_KEYS.PEGAWAI, JSON.stringify(DEFAULT_PEGAWAI));
   localStorage.setItem(STORAGE_KEYS.EDUVENTURE, JSON.stringify(DEFAULT_EDUVENTURE));
   localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(DEFAULT_GROUPS));
   localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(DEFAULT_USERS));
   localStorage.setItem(STORAGE_KEYS.MENUS, JSON.stringify(APP_MENU_DEFINITIONS));
   localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(DEFAULT_SETTING));
   
-  writeLog('Inisialisasi Database', 'SETUP', 'DEFAULT_SEED', 'Database Google Sheets direset ke struktur awal Unpad (Peserta, Kategori, Program, PIC, Eduventure, Group Akun & Privilege, Menus, Users)');
+  writeLog('Inisialisasi Database', 'SETUP', 'DEFAULT_SEED', 'Database Google Sheets direset ke struktur awal Unpad (Peserta, Kategori, Program, PIC, Pegawai, Eduventure, Group Akun & Privilege, Menus, Users)');
 }
 
 // ==========================================
@@ -1911,6 +2159,7 @@ export function generateSystemBackup(
   const kategori = isIncluded('kategori') ? getKategori() : [];
   const program = isIncluded('program') ? getProgram() : [];
   const pic = isIncluded('pic') ? getPic() : [];
+  const pegawai = isIncluded('pegawai') ? getPegawai() : [];
   const eduventure = isIncluded('eduventure') ? getEduventure() : [];
   const tempatEduventure = isIncluded('tempatEduventure') ? getTempatEduventure() : [];
   const users = isIncluded('users') ? getUsers() : [];
@@ -1925,6 +2174,7 @@ export function generateSystemBackup(
     totalKategori: kategori.length,
     totalProgram: program.length,
     totalPic: pic.length,
+    totalPegawai: pegawai.length,
     totalEduventure: eduventure.length,
     totalTempatEduventure: tempatEduventure.length,
     totalUsers: users.length,
@@ -1951,6 +2201,7 @@ export function generateSystemBackup(
       kategori,
       program,
       pic,
+      pegawai,
       eduventure,
       tempatEduventure,
       users,
@@ -2023,6 +2274,7 @@ export function validateBackupFile(rawJson: string): {
       totalKategori: Array.isArray(dataObj.kategori) ? dataObj.kategori.length : 0,
       totalProgram: Array.isArray(dataObj.program) ? dataObj.program.length : 0,
       totalPic: Array.isArray(dataObj.pic) ? dataObj.pic.length : 0,
+      totalPegawai: Array.isArray(dataObj.pegawai) ? dataObj.pegawai.length : 0,
       totalEduventure: Array.isArray(dataObj.eduventure) ? dataObj.eduventure.length : 0,
       totalTempatEduventure: Array.isArray(dataObj.tempatEduventure) ? dataObj.tempatEduventure.length : 0,
       totalUsers: Array.isArray(dataObj.users) ? dataObj.users.length : 0,
@@ -2047,6 +2299,7 @@ export function validateBackupFile(rawJson: string): {
         kategori: Array.isArray(dataObj.kategori) ? dataObj.kategori : [],
         program: Array.isArray(dataObj.program) ? dataObj.program : [],
         pic: Array.isArray(dataObj.pic) ? dataObj.pic : [],
+        pegawai: Array.isArray(dataObj.pegawai) ? dataObj.pegawai : [],
         eduventure: Array.isArray(dataObj.eduventure) ? dataObj.eduventure : [],
         tempatEduventure: Array.isArray(dataObj.tempatEduventure) ? dataObj.tempatEduventure : [],
         users: Array.isArray(dataObj.users) ? dataObj.users : [],
@@ -2151,6 +2404,21 @@ export function restoreSystemBackup(
       const merged = Array.from(currentMap.values());
       localStorage.setItem(STORAGE_KEYS.PIC, JSON.stringify(merged));
       restoredCounts.pic = merged.length;
+    }
+  }
+
+  // 4b. PEGAWAI
+  if (shouldRestore('pegawai') && backup.data.pegawai) {
+    if (mode === 'replace') {
+      localStorage.setItem(STORAGE_KEYS.PEGAWAI, JSON.stringify(backup.data.pegawai));
+      restoredCounts.pegawai = backup.data.pegawai.length;
+    } else {
+      const current = getPegawai();
+      const currentMap = new Map(current.map(p => [p.id, p]));
+      backup.data.pegawai.forEach(p => currentMap.set(p.id, { ...(currentMap.get(p.id) || {}), ...p }));
+      const merged = Array.from(currentMap.values());
+      localStorage.setItem(STORAGE_KEYS.PEGAWAI, JSON.stringify(merged));
+      restoredCounts.pegawai = merged.length;
     }
   }
 
@@ -2399,6 +2667,7 @@ export function getSystemStorageStats(): {
   measure(STORAGE_KEYS.PROGRAM, 'program', getProgram().length);
   measure(STORAGE_KEYS.KATEGORI, 'kategori', getKategori().length);
   measure(STORAGE_KEYS.PIC, 'pic', getPic().length);
+  measure(STORAGE_KEYS.PEGAWAI, 'pegawai', getPegawai().length);
   measure(STORAGE_KEYS.USERS, 'users', getUsers().length);
   measure(STORAGE_KEYS.GROUPS, 'groups', getGroups().length);
   measure(STORAGE_KEYS.MENUS, 'menus', getAppMenus().length);

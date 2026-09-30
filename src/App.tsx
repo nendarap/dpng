@@ -21,16 +21,18 @@ import { MapDashboardView } from './components/MapDashboardView';
 import { EduventureView } from './components/EduventureView';
 import { BackupRestoreView } from './components/BackupRestoreView';
 import { GoogleSheetConnectionModal } from './components/GoogleSheetConnectionModal';
+import { PegawaiView } from './components/PegawaiView';
 
 import { 
   Peserta, Kategori, Program, PicProgram, UserItem, LogAktivitas, SettingApp, UserRole,
-  EduventureBooking, GroupAkun, MenuPrivilege, AppMenuId, AppThemeId
+  EduventureBooking, GroupAkun, MenuPrivilege, AppMenuId, AppThemeId, Pegawai
 } from './types';
 import { 
   getPeserta, createPeserta, updatePeserta, deletePeserta, deleteMultiplePeserta, updateMultiplePesertaStatus,
   getKategori, saveKategori, deleteKategori,
   getProgram, saveProgram, deleteProgram,
   getPic, savePic, deletePic,
+  getPegawai, savePegawai, deletePegawai, deleteMultiplePegawai, bulkImportPegawai,
   getEduventure, saveEduventure, deleteEduventure, bulkImportEduventure,
   getUsers, saveUser, deleteUser,
   getGroups, saveGroup, deleteGroup, saveAllGroupPrivileges, resetPrivilegesToDefaults,
@@ -59,6 +61,7 @@ export default function App() {
   const [kategoriList, setKategoriList] = useState<Kategori[]>(getKategori());
   const [programList, setProgramList] = useState<Program[]>(getProgram());
   const [picList, setPicList] = useState<PicProgram[]>(getPic());
+  const [pegawaiList, setPegawaiList] = useState<Pegawai[]>(getPegawai());
   const [eduventureList, setEduventureList] = useState<EduventureBooking[]>(getEduventure());
   const [groups, setGroups] = useState<GroupAkun[]>(() => getGroups());
   const [users, setUsers] = useState<UserItem[]>(getUsers());
@@ -90,6 +93,7 @@ export default function App() {
     setKategoriList(getKategori());
     setProgramList(getProgram());
     setPicList(getPic());
+    setPegawaiList(getPegawai());
     setEduventureList(getEduventure());
     setGroups(getGroups());
     setUsers(getUsers());
@@ -296,6 +300,51 @@ export default function App() {
     } else {
       showToast(res.message, 'error');
     }
+  };
+
+  // Pegawai Handlers
+  const handleSavePegawai = (pegawai: Pegawai) => {
+    const res = savePegawai(pegawai);
+    if (res.success) {
+      showToast(res.message);
+      refreshAllData();
+    } else {
+      showToast(res.message, 'error');
+    }
+  };
+
+  const handleDeletePegawai = (id: string) => {
+    const res = deletePegawai(id);
+    if (res.success) {
+      showToast(res.message);
+      refreshAllData();
+    } else {
+      showToast(res.message, 'error');
+    }
+  };
+
+  const handleDeleteMultiplePegawai = (ids: string[]) => {
+    const res = deleteMultiplePegawai(ids);
+    if (res.success) {
+      showToast(res.message);
+      refreshAllData();
+    } else {
+      showToast(res.message, 'error');
+    }
+  };
+
+  const handleBulkImportPegawai = (
+    items: Array<Partial<Pegawai>>,
+    mode: 'skip' | 'update' | 'force'
+  ) => {
+    const res = bulkImportPegawai(items, mode);
+    if (res.success) {
+      showToast(res.message);
+      refreshAllData();
+    } else {
+      showToast(res.message, 'error');
+    }
+    return res;
   };
 
   // Eduventure Handlers
@@ -581,6 +630,18 @@ export default function App() {
                 />
               )}
 
+              {activeTab === 'pegawai' && (
+                <PegawaiView
+                  pegawaiList={pegawaiList}
+                  userRole={currentUser.role}
+                  onSavePegawai={handleSavePegawai}
+                  onDeletePegawai={handleDeletePegawai}
+                  onDeleteMultiplePegawai={handleDeleteMultiplePegawai}
+                  onBulkImportPegawai={handleBulkImportPegawai}
+                  onRefreshData={refreshAllData}
+                />
+              )}
+
               {activeTab === 'eduventure_dashboard' && (
                 <EduventureView
                   eduventureList={eduventureList}
@@ -626,7 +687,9 @@ export default function App() {
                 <ImportView
                   kategoriList={kategoriList}
                   programList={programList}
+                  pegawaiList={pegawaiList}
                   onImportDone={handleImportDone}
+                  onImportPegawaiDone={handleBulkImportPegawai}
                 />
               )}
 

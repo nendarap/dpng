@@ -3,7 +3,8 @@ import {
   LayoutDashboard, Users, UserPlus, Layers, GraduationCap, 
   Search, FileSpreadsheet, Download, BarChart3, ShieldCheck, 
   History, Settings, Code, X, LogOut, Map, UserCheck, Compass,
-  SlidersHorizontal, Shield, ChevronRight, DatabaseBackup, Database
+  SlidersHorizontal, Shield, ChevronRight, DatabaseBackup, Database,
+  Briefcase
 } from 'lucide-react';
 import { UserRole, GroupAkun, UserItem, AppMenuId, AppMenuItemDef, AppThemeId } from '../types';
 import { hasMenuAccess } from '../data/privilegeData';
@@ -19,6 +20,7 @@ export type ActiveTab =
   | 'kategori' 
   | 'program' 
   | 'pic'
+  | 'pegawai'
   | 'eduventure'
   | 'search' 
   | 'import' 
@@ -53,6 +55,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   kategori: Layers,
   program: GraduationCap,
   pic: UserCheck,
+  pegawai: Briefcase,
   eduventure: Compass,
   search: Search,
   import: FileSpreadsheet,
@@ -114,10 +117,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
     if (userRole === 'ADMIN') return true;
     if (userRole === 'OPERATOR') {
-      return ['dashboard', 'eduventure_dashboard', 'map_dashboard', 'kategori', 'program', 'pic', 'peserta', 'tambah', 'eduventure', 'search', 'statistik', 'export', 'log', 'gas_code', 'backup_restore'].includes(itemId);
+      return ['dashboard', 'eduventure_dashboard', 'map_dashboard', 'kategori', 'program', 'pic', 'pegawai', 'peserta', 'tambah', 'eduventure', 'search', 'statistik', 'export', 'log', 'gas_code', 'backup_restore'].includes(itemId);
     }
     if (userRole === 'VIEWER') {
-      return ['dashboard', 'eduventure_dashboard', 'map_dashboard', 'kategori', 'program', 'pic', 'peserta', 'eduventure', 'search', 'statistik', 'export', 'gas_code'].includes(itemId);
+      return ['dashboard', 'eduventure_dashboard', 'map_dashboard', 'kategori', 'program', 'pic', 'pegawai', 'peserta', 'eduventure', 'search', 'statistik', 'export', 'gas_code'].includes(itemId);
     }
     return false;
   };

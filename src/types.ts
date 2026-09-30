@@ -80,6 +80,57 @@ export interface PicProgram {
   updatedAt?: string;
 }
 
+export interface Pegawai {
+  id: string; // e.g. "PEG-001"
+  no?: number;
+  nip: string;
+  nama: string;
+  kartuPegawai: string; // Kartu Pegawai (Karpeg)
+  statusKepegawaian: string; // PNS, PPPK, Pegawai Tetap Non-PNS, Kontrak, dll.
+  unitKerja: string; // e.g. Direktorat Pendidikan Non Gelar, Fakultas Kedokteran
+  bagian: string; // Bagian / Divisi
+  bidangKerja: string; // Bidang Pekerjaan / Spesialisasi
+  nidnNuptk: string; // NIDN atau NUPTK
+  statusAktif: 'Aktif' | 'Tugas Belajar' | 'Izin Belajar' | 'Cuti' | 'Pensiun' | string;
+  keteranganStatusAktif?: string;
+  tanggalDitetapkanStatus?: string; // YYYY-MM-DD
+  tempatLahir: string;
+  tanggalLahir: string; // YYYY-MM-DD
+  jenisKelamin: 'Laki-laki' | 'Perempuan' | string;
+  agama: string;
+  golonganDarah?: string;
+  sukuBangsa?: string;
+  kewarganegaraan: string;
+  statusMarital: string; // Belum Kawin, Kawin, Cerai Hidup, Cerai Mati
+  alamat: string;
+  kecamatan: string;
+  kelurahan: string;
+  rt: string;
+  rw: string;
+  kota: string;
+  propinsi: string;
+  kodePos: string;
+  telepon?: string;
+  hp: string;
+  email: string;
+  lembagaPendidikan: string; // Universitas / Perguruan Tinggi
+  jenjang: string; // S1, S2, S3, D3, D4, dll.
+  jurusan: string;
+  tempat: string; // Kota / Lokasi Lembaga Pendidikan
+  tahunLulus: number | string;
+  gelarDepan?: string;
+  gelarBelakang?: string;
+  pangkat: string; // e.g. Pembina, Penata Tingkat I
+  golongan: string; // e.g. IV/a, III/d
+  jabatanStruktural?: string; // e.g. Direktur, Kepala Divisi
+  periode?: string; // e.g. 2024-2029
+  unitKerjaJabatanStruktural?: string;
+  jabatanFungsional: string; // e.g. Guru Besar, Lektor Kepala, Lektor, Pranata Komputer
+  fotoUrl?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface Kategori {
   idKategori: string;
   namaKategori: string;
@@ -189,6 +240,7 @@ export type AppMenuId =
   | 'kategori' 
   | 'program' 
   | 'pic'
+  | 'pegawai'
   | 'eduventure'
   | 'search' 
   | 'import' 
@@ -337,6 +389,7 @@ export interface SimpendikBackupSummary {
   totalKategori: number;
   totalProgram: number;
   totalPic: number;
+  totalPegawai?: number;
   totalEduventure: number;
   totalTempatEduventure: number;
   totalUsers: number;
@@ -350,6 +403,7 @@ export interface SimpendikBackupData {
   kategori: Kategori[];
   program: Program[];
   pic: PicProgram[];
+  pegawai?: Pegawai[];
   eduventure: EduventureBooking[];
   tempatEduventure?: string[];
   users?: UserItem[];
