@@ -100,7 +100,28 @@ export const PegawaiView: React.FC<PegawaiViewProps> = ({
   // Selection
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [masterSelectMenuOpen, setMasterSelectMenuOpen] = useState(false);
+  const [topSelectMenuOpen, setTopSelectMenuOpen] = useState(false);
   const masterCheckboxRef = useRef<HTMLInputElement>(null);
+  const masterMenuRef = useRef<HTMLDivElement>(null);
+  const topSelectMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close selection dropdowns on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (masterMenuRef.current && !masterMenuRef.current.contains(e.target as Node)) {
+        setMasterSelectMenuOpen(false);
+      }
+      if (topSelectMenuRef.current && !topSelectMenuRef.current.contains(e.target as Node)) {
+        setTopSelectMenuOpen(false);
+      }
+    };
+    if (masterSelectMenuOpen || topSelectMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [masterSelectMenuOpen, topSelectMenuOpen]);
 
   // Pagination & Sorting
   const [currentPage, setCurrentPage] = useState(1);
@@ -162,8 +183,22 @@ export const PegawaiView: React.FC<PegawaiViewProps> = ({
 
   // Selection Lookups
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
-  const isAllPageSelected = paginatedData.length > 0 && paginatedData.every(p => selectedIdSet.has(p.id));
-  const isSomePageSelected = paginatedData.some(p => selectedIdSet.has(p.id));
+  const isAllPageSelected = useMemo(() => {
+    return paginatedData.length > 0 && paginatedData.every(p => selectedIdSet.has(p.id));
+  }, [paginatedData, selectedIdSet]);
+  const isSomePageSelected = useMemo(() => {
+    return paginatedData.some(p => selectedIdSet.has(p.id));
+  }, [paginatedData, selectedIdSet]);
+  const isAllFilteredSelected = useMemo(() => {
+    return filteredData.length > 0 &&
+           filteredData.length === selectedIds.length &&
+           filteredData.every(p => selectedIdSet.has(p.id));
+  }, [filteredData, selectedIds.length, selectedIdSet]);
+  const isAllDatabaseSelected = useMemo(() => {
+    return pegawaiList.length > 0 &&
+           pegawaiList.length === selectedIds.length &&
+           pegawaiList.every(p => selectedIdSet.has(p.id));
+  }, [pegawaiList, selectedIds.length, selectedIdSet]);
 
   useEffect(() => {
     if (masterCheckboxRef.current) {
@@ -184,6 +219,36 @@ export const PegawaiView: React.FC<PegawaiViewProps> = ({
       paginatedData.forEach(p => next.add(p.id));
       setSelectedIds(Array.from(next));
     }
+  };
+
+  const handleSelectCurrentPage = () => {
+    const next = new Set(selectedIds);
+    paginatedData.forEach(p => next.add(p.id));
+    setSelectedIds(Array.from(next));
+    setMasterSelectMenuOpen(false);
+    setTopSelectMenuOpen(false);
+    showNotification(`${paginatedData.length} data pegawai di halaman ${currentPage} dipilih.`);
+  };
+
+  const handleSelectAllFiltered = () => {
+    setSelectedIds(filteredData.map(p => p.id));
+    setMasterSelectMenuOpen(false);
+    setTopSelectMenuOpen(false);
+    showNotification(`Seluruh ${filteredData.length} data pegawai hasil filter telah dipilih.`);
+  };
+
+  const handleSelectAllDatabase = () => {
+    setSelectedIds(pegawaiList.map(p => p.id));
+    setMasterSelectMenuOpen(false);
+    setTopSelectMenuOpen(false);
+    showNotification(`Seluruh ${pegawaiList.length} data pegawai dalam database telah dipilih.`);
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedIds([]);
+    setMasterSelectMenuOpen(false);
+    setTopSelectMenuOpen(false);
+    showNotification('Pilihan data pegawai telah dibatalkan.');
   };
 
   const selectedPegawaiList = useMemo(() => {
@@ -394,6 +459,74 @@ export const PegawaiView: React.FC<PegawaiViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+          {/* Quick Select All Data Button */}
+          <div className="relative" ref={topSelectMenuRef}>
+            <button
+              type="button"
+              id="btn-select-options-pegawai"
+              onClick={() => setTopSelectMenuOpen(!topSelectMenuOpen)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-[#002B66] rounded-lg text-xs font-semibold transition-colors border border-slate-200 cursor-pointer shadow-2xs"
+              title="Pilih data pegawai (Halaman / Semua Data)"
+            >
+              <CheckSquare className="w-3.5 h-3.5 text-[#002B66]" />
+              <span>Pilih Data</span>
+              {selectedIds.length > 0 && (
+                <span className="bg-[#002B66] text-[#FDB913] text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">
+                  {selectedIds.length}
+                </span>
+              )}
+              <ChevronDown className="w-3 h-3 text-slate-400" />
+            </button>
+
+            {topSelectMenuOpen && (
+              <div className="absolute right-0 sm:left-0 mt-1 w-64 bg-white rounded-xl shadow-xl border border-slate-200 p-1.5 z-30 text-xs text-slate-700 font-normal space-y-1 text-left animate-in fade-in">
+                <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Opsi Pilihan Data Pegawai
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSelectCurrentPage}
+                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-slate-100 text-left cursor-pointer"
+                >
+                  <span>Pilih Halaman Ini ({currentPage})</span>
+                  <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                    {paginatedData.length} data
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSelectAllFiltered}
+                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-blue-50 text-left font-semibold text-[#002B66] cursor-pointer"
+                >
+                  <span>Pilih Semua Hasil Filter</span>
+                  <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">
+                    {filteredData.length} data
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSelectAllDatabase}
+                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-slate-100 text-left text-slate-700 cursor-pointer"
+                >
+                  <span>Pilih Seluruh Database</span>
+                  <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                    {pegawaiList.length} data
+                  </span>
+                </button>
+                <div className="border-t border-slate-100 my-1"></div>
+                <button
+                  type="button"
+                  onClick={handleDeselectAll}
+                  disabled={selectedIds.length === 0}
+                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-rose-50 text-left text-rose-600 disabled:opacity-40 disabled:hover:bg-transparent cursor-pointer font-medium"
+                >
+                  <span>Batalkan Semua Pilihan</span>
+                  <span className="text-[10px] font-bold">0</span>
+                </button>
+              </div>
+            )}
+          </div>
+
           {userRole !== 'VIEWER' && (
             <button
               onClick={() => setIsImportModalOpen(true)}
@@ -496,21 +629,167 @@ export const PegawaiView: React.FC<PegawaiViewProps> = ({
         </div>
       </div>
 
+      {/* Select All Helper Banner */}
+      {isAllPageSelected && filteredData.length > paginatedData.length && !isAllFilteredSelected && !isAllDatabaseSelected && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-amber-900 shadow-2xs animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <CheckSquare className="w-4 h-4 text-amber-700 shrink-0" />
+            <span>Semua <strong>{paginatedData.length}</strong> pegawai di halaman {currentPage} ini telah dipilih.</span>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={handleSelectAllFiltered}
+              className="font-bold underline text-[#002B66] hover:text-[#083a7e] cursor-pointer"
+            >
+              Pilih semua {filteredData.length} data pegawai yang sesuai filter
+            </button>
+            {filteredData.length < pegawaiList.length && (
+              <>
+                <span className="text-amber-400">|</span>
+                <button
+                  type="button"
+                  onClick={handleSelectAllDatabase}
+                  className="font-bold underline text-blue-800 hover:text-blue-950 cursor-pointer"
+                >
+                  Pilih seluruh {pegawaiList.length} database
+                </button>
+              </>
+            )}
+            <span className="text-amber-400">|</span>
+            <button
+              type="button"
+              onClick={handleDeselectAll}
+              className="text-slate-600 hover:text-slate-900 cursor-pointer"
+            >
+              Batal Pilih
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isAllFilteredSelected && !isAllDatabaseSelected && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-[#002B66] shadow-2xs animate-in fade-in">
+          <div className="flex items-center gap-2 font-medium">
+            <CheckSquare className="w-4 h-4 text-[#002B66] shrink-0" />
+            <span>Seluruh <strong>{filteredData.length}</strong> data pegawai hasil filter telah dipilih.</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {filteredData.length < pegawaiList.length && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleSelectAllDatabase}
+                  className="font-bold underline text-blue-900 hover:text-black cursor-pointer"
+                >
+                  Pilih seluruh {pegawaiList.length} data pegawai
+                </button>
+                <span className="text-blue-300">|</span>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={handleDeselectAll}
+              className="font-bold text-rose-600 hover:text-rose-800 cursor-pointer hover:underline"
+            >
+              Batalkan Pilihan Semua Data
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isAllDatabaseSelected && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 flex items-center justify-between text-xs text-indigo-900 shadow-2xs animate-in fade-in">
+          <div className="flex items-center gap-2 font-medium">
+            <CheckSquare className="w-4 h-4 text-indigo-700 shrink-0" />
+            <span>Seluruh database (<strong>{pegawaiList.length}</strong> data pegawai) telah dipilih.</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleDeselectAll}
+            className="font-bold text-rose-600 hover:text-rose-800 cursor-pointer hover:underline"
+          >
+            Batalkan Pilihan Semua Data
+          </button>
+        </div>
+      )}
+
       {/* Main Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-[#002B66] text-white font-bold tracking-wide select-none">
               <tr>
-                <th className="p-3 w-10 text-center">
-                  <input
-                    ref={masterCheckboxRef}
-                    type="checkbox"
-                    checked={paginatedData.length > 0 && isAllPageSelected}
-                    onChange={handleToggleMasterCheckbox}
-                    className="w-4 h-4 rounded text-[#002B66] cursor-pointer accent-[#FDB913]"
-                    title="Pilih semua di halaman ini"
-                  />
+                <th className="p-3 w-12 text-center relative">
+                  <div className="flex items-center justify-center gap-0.5">
+                    <input
+                      ref={masterCheckboxRef}
+                      type="checkbox"
+                      id="checkbox-select-all-pegawai-header"
+                      checked={paginatedData.length > 0 && isAllPageSelected}
+                      onChange={handleToggleMasterCheckbox}
+                      className="w-4 h-4 rounded text-[#002B66] focus:ring-[#002B66] cursor-pointer accent-[#FDB913]"
+                      title={isAllPageSelected ? "Batalkan pilihan halaman ini" : "Pilih semua di halaman ini"}
+                    />
+                    <div className="relative" ref={masterMenuRef}>
+                      <button
+                        type="button"
+                        onClick={() => setMasterSelectMenuOpen(!masterSelectMenuOpen)}
+                        className="p-1 text-slate-300 hover:text-white rounded hover:bg-[#083a7e] transition-colors cursor-pointer"
+                        title="Opsi Pilihan Data Pegawai (Halaman / Semua Data)"
+                      >
+                        <ChevronDown className="w-3 h-3" />
+                      </button>
+
+                      {masterSelectMenuOpen && (
+                        <div className="absolute left-0 mt-1 w-56 bg-white rounded-xl shadow-xl border border-slate-200 p-1.5 z-30 text-xs text-slate-700 font-normal space-y-1 text-left">
+                          <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                            Opsi Pilihan Data
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleSelectCurrentPage}
+                            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-slate-100 text-left cursor-pointer"
+                          >
+                            <span>Pilih Halaman Ini</span>
+                            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                              {paginatedData.length} data
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSelectAllFiltered}
+                            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-blue-50 text-left font-semibold text-[#002B66] cursor-pointer"
+                          >
+                            <span>Pilih Semua Hasil Filter</span>
+                            <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">
+                              {filteredData.length} data
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSelectAllDatabase}
+                            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-slate-100 text-left text-slate-700 cursor-pointer"
+                          >
+                            <span>Pilih Seluruh Database</span>
+                            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                              {pegawaiList.length} data
+                            </span>
+                          </button>
+                          <div className="border-t border-slate-100 my-1"></div>
+                          <button
+                            type="button"
+                            onClick={handleDeselectAll}
+                            disabled={selectedIds.length === 0}
+                            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-rose-50 text-left text-rose-600 disabled:opacity-40 disabled:hover:bg-transparent cursor-pointer font-medium"
+                          >
+                            <span>Batalkan Semua Pilihan</span>
+                            <span className="text-[10px] font-bold">0</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </th>
                 <th className="p-3 w-10 text-center">No</th>
                 <th onClick={() => { setSortField('nip'); setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc'); }} className="p-3 cursor-pointer hover:bg-[#083a7e]">
@@ -696,7 +975,31 @@ export const PegawaiView: React.FC<PegawaiViewProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {!isAllFilteredSelected && (
+              <button
+                type="button"
+                onClick={handleSelectAllFiltered}
+                className="flex items-center gap-1 px-3 py-1.5 bg-blue-700 hover:bg-blue-600 text-white rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-xs"
+                title="Pilih seluruh data hasil filter saat ini"
+              >
+                <CheckSquare className="w-3.5 h-3.5 text-[#FDB913]" />
+                <span>Pilih Semua Hasil Filter ({filteredData.length})</span>
+              </button>
+            )}
+
+            {isAllFilteredSelected && !isAllDatabaseSelected && (
+              <button
+                type="button"
+                onClick={handleSelectAllDatabase}
+                className="flex items-center gap-1 px-3 py-1.5 bg-indigo-700 hover:bg-indigo-600 text-white rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-xs"
+                title="Pilih seluruh database pegawai"
+              >
+                <CheckSquare className="w-3.5 h-3.5 text-[#FDB913]" />
+                <span>Pilih Seluruh DB ({pegawaiList.length})</span>
+              </button>
+            )}
+
             {selectedIds.length === 1 && (
               <button
                 onClick={() => {
@@ -730,8 +1033,10 @@ export const PegawaiView: React.FC<PegawaiViewProps> = ({
             )}
 
             <button
-              onClick={() => setSelectedIds([])}
-              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold"
+              type="button"
+              onClick={handleDeselectAll}
+              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold cursor-pointer"
+              title="Batalkan pilihan pegawai"
             >
               Batal
             </button>
