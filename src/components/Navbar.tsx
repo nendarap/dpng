@@ -6,6 +6,7 @@ import {
 import { UserItem, UserRole, GroupAkun, AppThemeId } from '../types';
 import { UnpadLogo } from './UnpadLogo';
 import { UserProfileModal } from './UserProfileModal';
+import { SessionStatusWidget } from './SessionManager';
 
 interface NavbarProps {
   currentUser: UserItem;
@@ -20,6 +21,7 @@ interface NavbarProps {
   currentTheme?: AppThemeId;
   onUpdateUser?: (updatedUser: UserItem) => void;
   onThemeChange?: (theme: AppThemeId) => void;
+  onShowToast?: (msg: string, type?: 'success' | 'error') => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -34,6 +36,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentTheme = 'unpad-blue',
   onUpdateUser = () => {},
   onThemeChange = () => {},
+  onShowToast = () => {},
 }) => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [profileModalTab, setProfileModalTab] = useState<'info' | 'password' | 'photo' | 'theme'>('info');
@@ -134,7 +137,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
 
-            {/* 4. User Profile Dropdown & Modal Trigger (Pojok Kanan Atas) */}
+            {/* 4. Session Status Countdown & Extend Widget */}
+            <SessionStatusWidget 
+              onShowToast={onShowToast} 
+              onLogout={onLogout} 
+            />
+
+            {/* 5. User Profile Dropdown & Modal Trigger (Pojok Kanan Atas) */}
             <div className="relative pl-1 border-l border-slate-200">
               <button
                 type="button"

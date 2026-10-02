@@ -444,3 +444,27 @@ export interface BackupSnapshotItem {
   isAutoSafety?: boolean;
 }
 
+export interface LoginSession {
+  sessionId: string;
+  userId: string;
+  email: string;
+  nama: string;
+  role: UserRole;
+  loginAt: string; // ISO string
+  expiresAt: string; // ISO string
+  lastActivityAt: string; // ISO string
+  sessionDurationMinutes: number; // e.g. 30, 60, 480, 1440
+  autoLogoutOnInactivity: boolean;
+  inactivityMinutes: number; // e.g. 15, 30
+  rememberMe: boolean;
+  ipUserAgent?: string;
+}
+
+export interface SessionConfig {
+  defaultDurationMinutes: number;
+  inactivityTimeoutMinutes: number;
+  enableInactivityTimeout: boolean;
+  showWarningBeforeMinutes: number;
+}
+
+

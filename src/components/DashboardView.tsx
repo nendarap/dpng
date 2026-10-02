@@ -2,8 +2,13 @@ import React, { useState, useMemo } from 'react';
 import { 
   Users, UserCheck, Clock, Award, XCircle, 
   GraduationCap, Layers, Calendar, Filter, RotateCcw,
-  Building2, MapPin, ArrowUpRight, Map, Compass, ChevronRight
+  Building2, MapPin, ArrowUpRight, Map, Compass, ChevronRight,
+  PieChart as PieChartIcon, BarChart3, TrendingUp
 } from 'lucide-react';
+import { 
+  ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RechartsTooltip,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend
+} from 'recharts';
 import { Peserta, Kategori, Program, LogAktivitas, EduventureBooking } from '../types';
 import { UnpadLogo } from './UnpadLogo';
 
@@ -146,6 +151,59 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const maxKategoriCount = Math.max(...kategoriStats.map(k => k.count), 1);
   const maxInstansiCount = Math.max(...topInstansi.map(i => i.count), 1);
+
+  // Palet Warna Resmi Unpad & Turunan untuk Recharts
+  const CATEGORY_COLORS = [
+    '#002B66', '#FDB913', '#046A38', '#881337', '#2563EB',
+    '#7C3AED', '#0891B2', '#D97706', '#4F46E5', '#059669',
+    '#E11D48', '#64748B', '#0D9488'
+  ];
+
+  // Recharts Data 1: Pie Chart Peserta per Kategori
+  const pieChartData = useMemo(() => {
+    return kategoriStats
+      .filter(k => k.count > 0)
+      .sort((a, b) => b.count - a.count);
+  }, [kategoriStats]);
+
+  // Recharts Data 2: Bar Chart Tren Pendaftaran Bulanan (Monthly Enrollment Trend)
+  const monthlyEnrollmentStats = useMemo(() => {
+    const counts = Array(12).fill(0);
+    filteredPeserta.forEach(p => {
+      let monthIdx = -1;
+      if (p.tanggalMulai && p.tanggalMulai.length >= 7) {
+        const parts = p.tanggalMulai.split('-');
+        if (parts.length >= 2) {
+          const m = parseInt(parts[1], 10) - 1;
+          if (m >= 0 && m < 12) monthIdx = m;
+        }
+      }
+      if (monthIdx === -1 && p.createdAt && p.createdAt.length >= 7) {
+        const parts = p.createdAt.split('-');
+        if (parts.length >= 2) {
+          const m = parseInt(parts[1], 10) - 1;
+          if (m >= 0 && m < 12) monthIdx = m;
+        }
+      }
+      if (monthIdx === -1) {
+        // Fallback default bulan berurutan
+        monthIdx = p.tahun ? (p.tahun % 12) : 0;
+      }
+      counts[monthIdx]++;
+    });
+
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    const fullMonthNames = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+
+    return monthNames.map((bulan, idx) => ({
+      bulan,
+      namaBulan: fullMonthNames[idx],
+      jumlah: counts[idx]
+    }));
+  }, [filteredPeserta]);
 
   // Eduventure metrics summary for linked display
   const eduventureSummary = useMemo(() => {
@@ -421,6 +479,205 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <option value="Bali">Bali</option>
               <option value="Sulawesi Selatan">Sulawesi Selatan</option>
             </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Interactive Recharts Data Visualization Section */}
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[#002B66] text-[#FDB913] flex items-center justify-center font-bold">
+              <TrendingUp className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-base font-extrabold text-[#002B66]">
+                Analisis Visualisasi Data Interaktif (Recharts)
+              </h2>
+              <p className="text-xs text-slate-500">
+                Proporsi peserta berdasarkan kategori program & tren pendaftaran bulanan
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-[#002B66] bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 flex items-center gap-1.5">
+              <BarChart3 className="w-3.5 h-3.5 text-[#002B66]" />
+              {filteredPeserta.length} Data Teranalisis
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          {/* Card 1: Pie Chart - Participants by Program Category (5 cols) */}
+          <div className="lg:col-span-5 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <PieChartIcon className="w-4 h-4 text-[#002B66]" />
+                  <h3 className="text-xs sm:text-sm font-bold text-[#002B66]">
+                    Komposisi Kategori Program
+                  </h3>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                  Pie Chart
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 mb-3">
+                Distribusi porsi peserta pada setiap rumpun kategori pendidikan non gelar
+              </p>
+            </div>
+
+            {/* Recharts Pie Chart */}
+            <div className="h-[250px] w-full relative">
+              {pieChartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <RechartsTooltip 
+                      formatter={(value: any, name: any) => [
+                        `${value} Peserta (${totalPeserta > 0 ? ((Number(value) / totalPeserta) * 100).toFixed(1) : 0}%)`, 
+                        name
+                      ]}
+                      contentStyle={{
+                        backgroundColor: '#ffffff',
+                        borderColor: '#e2e8f0',
+                        borderRadius: '0.75rem',
+                        fontSize: '11px',
+                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+                      }}
+                    />
+                    <Pie
+                      data={pieChartData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={88}
+                      paddingAngle={2}
+                      dataKey="count"
+                    >
+                      {pieChartData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-${entry.name}`} 
+                          fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]} 
+                        />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full text-slate-400 text-xs">
+                  Tidak ada data untuk filter saat ini
+                </div>
+              )}
+            </div>
+
+            {/* Custom Interactive Legend / Summary */}
+            <div className="mt-3 max-h-[120px] overflow-y-auto pr-1 space-y-1.5 border-t border-slate-100 pt-2.5">
+              {pieChartData.slice(0, 6).map((item, idx) => {
+                const color = CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
+                const pct = totalPeserta > 0 ? ((item.count / totalPeserta) * 100).toFixed(1) : '0';
+                return (
+                  <div key={item.name} className="flex items-center justify-between text-[11px]">
+                    <div className="flex items-center gap-2 truncate pr-2">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                      <span className="text-slate-700 truncate">{item.name}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="font-bold text-slate-800">{item.count}</span>
+                      <span className="text-slate-400 text-[10px]">({pct}%)</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Card 2: Bar Chart - Monthly Enrollment Trend (7 cols) */}
+          <div className="lg:col-span-7 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-[#002B66]" />
+                  <h3 className="text-xs sm:text-sm font-bold text-[#002B66]">
+                    Tren Pendaftaran Bulanan (Monthly Enrollment Trend)
+                  </h3>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  Tahun {filterTahun === 'ALL' ? 'Akademik' : filterTahun}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 mb-3">
+                Fluktuasi jumlah peserta yang mendaftar atau memulai program per bulan (Jan - Des)
+              </p>
+            </div>
+
+            {/* Recharts Bar Chart */}
+            <div className="h-[280px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart 
+                  data={monthlyEnrollmentStats}
+                  margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis 
+                    dataKey="bulan" 
+                    tick={{ fontSize: 11, fill: '#64748b' }} 
+                    axisLine={{ stroke: '#cbd5e1' }}
+                    tickLine={false}
+                  />
+                  <YAxis 
+                    allowDecimals={false}
+                    tick={{ fontSize: 11, fill: '#64748b' }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <RechartsTooltip
+                    formatter={(value: any) => [`${value} Peserta Terdaftar`, 'Jumlah Peserta']}
+                    labelFormatter={(label: any) => {
+                      const found = monthlyEnrollmentStats.find(m => m.bulan === label);
+                      return found ? `Bulan ${found.namaBulan}` : label;
+                    }}
+                    contentStyle={{
+                      backgroundColor: '#ffffff',
+                      borderColor: '#e2e8f0',
+                      borderRadius: '0.75rem',
+                      fontSize: '11px',
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+                    }}
+                  />
+                  <Bar 
+                    dataKey="jumlah" 
+                    fill="#002B66" 
+                    radius={[6, 6, 0, 0]}
+                    name="Peserta"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Summary Highlights */}
+            <div className="grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 mt-1 text-center">
+              <div className="p-2 bg-slate-50 rounded-xl">
+                <span className="text-[10px] text-slate-400 block font-medium">Bulan Tertinggi</span>
+                <strong className="text-xs text-[#002B66]">
+                  {(() => {
+                    const maxItem = [...monthlyEnrollmentStats].sort((a, b) => b.jumlah - a.jumlah)[0];
+                    return maxItem && maxItem.jumlah > 0 ? `${maxItem.namaBulan} (${maxItem.jumlah})` : '-';
+                  })()}
+                </strong>
+              </div>
+              <div className="p-2 bg-slate-50 rounded-xl">
+                <span className="text-[10px] text-slate-400 block font-medium">Rata-rata / Bulan</span>
+                <strong className="text-xs text-slate-700">
+                  {(totalPeserta / 12).toFixed(1)} Peserta
+                </strong>
+              </div>
+              <div className="p-2 bg-slate-50 rounded-xl">
+                <span className="text-[10px] text-slate-400 block font-medium">Total Akumulasi</span>
+                <strong className="text-xs text-emerald-700">
+                  {totalPeserta} Peserta
+                </strong>
+              </div>
+            </div>
           </div>
         </div>
       </div>

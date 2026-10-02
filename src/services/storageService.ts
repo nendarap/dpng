@@ -3,7 +3,7 @@ import {
   AdvancedSearchFilter, UserRole, PicProgram, EduventureBooking,
   GroupAkun, MenuPrivilege, AppMenuItemDef, AppThemeId, LoginSettings,
   SimpendikBackupPayload, SimpendikBackupData, SimpendikBackupSummary,
-  BackupSnapshotItem, RestoreMode, Pegawai
+  BackupSnapshotItem, RestoreMode, Pegawai, LoginSession, SessionConfig
 } from '../types';
 import { 
   DEFAULT_KATEGORI, DEFAULT_PROGRAM, DEFAULT_PESERTA, 
@@ -12,6 +12,10 @@ import {
 } from '../data/initialData';
 import { DEFAULT_GROUPS, APP_MENU_DEFINITIONS, ROLE_PRESET_MAP } from '../data/privilegeData';
 import { DEFAULT_LOGIN_SETTINGS } from '../data/loginPresets';
+import { 
+  safeGetItem, safeSetItem, safeRemoveItem, 
+  initStorageHydration, pruneStorageOnQuotaError, compactData 
+} from './storageDriver';
 
 const STORAGE_KEYS = {
   PESERTA: 'simpendik_unpad_peserta',
@@ -29,43 +33,63 @@ const STORAGE_KEYS = {
   ACTIVE_USER: 'simpendik_unpad_active_user',
   IS_LOGGED_IN: 'simpendik_unpad_is_logged_in',
   SNAPSHOTS: 'simpendik_unpad_snapshots',
+  ACTIVE_SESSION: 'simpendik_unpad_active_session',
+  SESSION_CONFIG: 'simpendik_unpad_session_config',
 };
 
 // Inisialisasi awal ke localStorage jika kosong
 export function initLocalStorage(): void {
-  if (!localStorage.getItem(STORAGE_KEYS.PESERTA)) {
-    localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(DEFAULT_PESERTA));
+  // Pangkas snapshot berlebih secara proaktif untuk menjaga headroom kuota
+  pruneStorageOnQuotaError();
+
+  // Hidrasi IndexedDB ke memoryCache secara asynchronous
+  initStorageHydration([
+    STORAGE_KEYS.PEGAWAI,
+    STORAGE_KEYS.PESERTA,
+    STORAGE_KEYS.EDUVENTURE,
+    STORAGE_KEYS.LOGS,
+    STORAGE_KEYS.SNAPSHOTS
+  ]).catch(() => {});
+
+  if (!safeGetItem(STORAGE_KEYS.PESERTA)) {
+    const rawVal = localStorage.getItem(STORAGE_KEYS.PESERTA);
+    if (!rawVal || (!rawVal.startsWith('{"__storage":"indexeddb"') && !rawVal.startsWith('LZ16:'))) {
+      safeSetItem(STORAGE_KEYS.PESERTA, JSON.stringify(DEFAULT_PESERTA));
+    }
   }
-  if (!localStorage.getItem(STORAGE_KEYS.KATEGORI)) {
-    localStorage.setItem(STORAGE_KEYS.KATEGORI, JSON.stringify(DEFAULT_KATEGORI));
+  if (!safeGetItem(STORAGE_KEYS.KATEGORI)) {
+    safeSetItem(STORAGE_KEYS.KATEGORI, JSON.stringify(DEFAULT_KATEGORI));
   }
-  if (!localStorage.getItem(STORAGE_KEYS.PROGRAM)) {
-    localStorage.setItem(STORAGE_KEYS.PROGRAM, JSON.stringify(DEFAULT_PROGRAM));
+  if (!safeGetItem(STORAGE_KEYS.PROGRAM)) {
+    safeSetItem(STORAGE_KEYS.PROGRAM, JSON.stringify(DEFAULT_PROGRAM));
   }
-  if (!localStorage.getItem(STORAGE_KEYS.PIC)) {
-    localStorage.setItem(STORAGE_KEYS.PIC, JSON.stringify(DEFAULT_PIC));
+  if (!safeGetItem(STORAGE_KEYS.PIC)) {
+    safeSetItem(STORAGE_KEYS.PIC, JSON.stringify(DEFAULT_PIC));
   }
-  if (!localStorage.getItem(STORAGE_KEYS.PEGAWAI)) {
-    localStorage.setItem(STORAGE_KEYS.PEGAWAI, JSON.stringify(DEFAULT_PEGAWAI));
+  if (!safeGetItem(STORAGE_KEYS.PEGAWAI)) {
+    const rawVal = localStorage.getItem(STORAGE_KEYS.PEGAWAI);
+    if (!rawVal || (!rawVal.startsWith('{"__storage":"indexeddb"') && !rawVal.startsWith('LZ16:'))) {
+      safeSetItem(STORAGE_KEYS.PEGAWAI, JSON.stringify(DEFAULT_PEGAWAI));
+    }
   }
-  if (!localStorage.getItem(STORAGE_KEYS.EDUVENTURE)) {
-    localStorage.setItem(STORAGE_KEYS.EDUVENTURE, JSON.stringify(DEFAULT_EDUVENTURE));
+  if (!safeGetItem(STORAGE_KEYS.EDUVENTURE)) {
+    safeSetItem(STORAGE_KEYS.EDUVENTURE, JSON.stringify(DEFAULT_EDUVENTURE));
   }
-  if (!localStorage.getItem(STORAGE_KEYS.TEMPAT_EDUVENTURE)) {
-    localStorage.setItem(STORAGE_KEYS.TEMPAT_EDUVENTURE, JSON.stringify(DEFAULT_TEMPAT_EDUVENTURE));
+  if (!safeGetItem(STORAGE_KEYS.TEMPAT_EDUVENTURE)) {
+    safeSetItem(STORAGE_KEYS.TEMPAT_EDUVENTURE, JSON.stringify(DEFAULT_TEMPAT_EDUVENTURE));
   }
-  if (!localStorage.getItem(STORAGE_KEYS.GROUPS)) {
-    localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(DEFAULT_GROUPS));
+  if (!safeGetItem(STORAGE_KEYS.GROUPS)) {
+    safeSetItem(STORAGE_KEYS.GROUPS, JSON.stringify(DEFAULT_GROUPS));
   }
-  if (!localStorage.getItem(STORAGE_KEYS.MENUS)) {
-    localStorage.setItem(STORAGE_KEYS.MENUS, JSON.stringify(APP_MENU_DEFINITIONS));
+  if (!safeGetItem(STORAGE_KEYS.MENUS)) {
+    safeSetItem(STORAGE_KEYS.MENUS, JSON.stringify(APP_MENU_DEFINITIONS));
   }
-  if (!localStorage.getItem(STORAGE_KEYS.USERS)) {
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(DEFAULT_USERS));
+  if (!safeGetItem(STORAGE_KEYS.USERS)) {
+    safeSetItem(STORAGE_KEYS.USERS, JSON.stringify(DEFAULT_USERS));
   } else {
     // Pastikan user memiliki kata sandi dan relasi groupId jika belum ada
     try {
-      const storedUsers: UserItem[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
+      const storedUsers: UserItem[] = JSON.parse(safeGetItem(STORAGE_KEYS.USERS) || '[]');
       let updated = false;
       const patched = storedUsers.map(u => {
         let changed = false;
@@ -87,27 +111,208 @@ export function initLocalStorage(): void {
         return copy;
       });
       if (updated) {
-        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(patched));
+        safeSetItem(STORAGE_KEYS.USERS, JSON.stringify(patched));
       }
     } catch {
       // ignore
     }
   }
-  if (!localStorage.getItem(STORAGE_KEYS.LOGS)) {
-    localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify(DEFAULT_LOGS));
+  if (!safeGetItem(STORAGE_KEYS.LOGS)) {
+    safeSetItem(STORAGE_KEYS.LOGS, JSON.stringify(DEFAULT_LOGS));
   }
-  if (!localStorage.getItem(STORAGE_KEYS.SETTINGS)) {
-    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(DEFAULT_SETTING));
+  if (!safeGetItem(STORAGE_KEYS.SETTINGS)) {
+    safeSetItem(STORAGE_KEYS.SETTINGS, JSON.stringify(DEFAULT_SETTING));
   }
-  if (!localStorage.getItem(STORAGE_KEYS.ACTIVE_USER)) {
-    localStorage.setItem(STORAGE_KEYS.ACTIVE_USER, JSON.stringify(DEFAULT_USERS[0]));
+  if (!safeGetItem(STORAGE_KEYS.ACTIVE_USER)) {
+    safeSetItem(STORAGE_KEYS.ACTIVE_USER, JSON.stringify(DEFAULT_USERS[0]));
+  }
+}
+
+// Session Configuration & Defaults
+export const DEFAULT_SESSION_CONFIG: SessionConfig = {
+  defaultDurationMinutes: 60, // 1 hour default
+  inactivityTimeoutMinutes: 30, // 30 minutes of no user interaction
+  enableInactivityTimeout: true,
+  showWarningBeforeMinutes: 2, // 2 minutes warning dialog before expiry
+};
+
+export function getSessionConfig(): SessionConfig {
+  initLocalStorage();
+  const raw = localStorage.getItem(STORAGE_KEYS.SESSION_CONFIG);
+  if (!raw) return DEFAULT_SESSION_CONFIG;
+  try {
+    return { ...DEFAULT_SESSION_CONFIG, ...JSON.parse(raw) };
+  } catch {
+    return DEFAULT_SESSION_CONFIG;
+  }
+}
+
+export function saveSessionConfig(config: Partial<SessionConfig>): SessionConfig {
+  const current = getSessionConfig();
+  const updated: SessionConfig = { ...current, ...config };
+  localStorage.setItem(STORAGE_KEYS.SESSION_CONFIG, JSON.stringify(updated));
+  writeLog('Update Pengaturan Sesi', 'CONFIG', 'SESSION', `Durasi: ${updated.defaultDurationMinutes}m, Timeout: ${updated.inactivityTimeoutMinutes}m`);
+  return updated;
+}
+
+export function getActiveSession(): LoginSession | null {
+  initLocalStorage();
+  const raw = localStorage.getItem(STORAGE_KEYS.ACTIVE_SESSION);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as LoginSession;
+  } catch {
+    return null;
+  }
+}
+
+// Buat sesi login baru saat autentikasi berhasil
+export function createSession(
+  user: UserItem, 
+  options?: { durationMinutes?: number; rememberMe?: boolean }
+): LoginSession {
+  const config = getSessionConfig();
+  let duration = options?.durationMinutes || config.defaultDurationMinutes;
+
+  // Jika "Ingat Saya" dicentang tanpa custom duration, perpanjang jadi 7 hari (10080 menit)
+  if (options?.rememberMe && (!options.durationMinutes || options.durationMinutes < 1440)) {
+    duration = 1440 * 7;
+  }
+
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + duration * 60 * 1000);
+  const sessionId = 'SES-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+
+  const session: LoginSession = {
+    sessionId,
+    userId: user.userId,
+    email: user.email,
+    nama: user.nama,
+    role: user.role,
+    loginAt: now.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    lastActivityAt: now.toISOString(),
+    sessionDurationMinutes: duration,
+    autoLogoutOnInactivity: config.enableInactivityTimeout,
+    inactivityMinutes: config.inactivityTimeoutMinutes,
+    rememberMe: Boolean(options?.rememberMe),
+    ipUserAgent: typeof navigator !== 'undefined' ? `${navigator.userAgent.substring(0, 80)}` : 'Browser Session'
+  };
+
+  localStorage.setItem(STORAGE_KEYS.ACTIVE_SESSION, JSON.stringify(session));
+  localStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'true');
+  return session;
+}
+
+// Validasi status sesi saat ini (apakah kadaluarsa atau inaktif)
+export function validateSession(): { 
+  isValid: boolean; 
+  reason?: 'expired' | 'inactive' | 'no_session'; 
+  remainingSeconds: number; 
+  session?: LoginSession 
+} {
+  const session = getActiveSession();
+  const isLoggedInFlag = localStorage.getItem(STORAGE_KEYS.IS_LOGGED_IN) === 'true';
+
+  if (!isLoggedInFlag || !session) {
+    return { isValid: false, reason: 'no_session', remainingSeconds: 0 };
+  }
+
+  const now = Date.now();
+  const expireTime = new Date(session.expiresAt).getTime();
+  const remainingSeconds = Math.max(0, Math.floor((expireTime - now) / 1000));
+
+  // 1. Cek masa berlaku sesi (Absolute Expiration)
+  if (remainingSeconds <= 0) {
+    endSession('Masa berlaku sesi login telah habis.');
+    return { isValid: false, reason: 'expired', remainingSeconds: 0 };
+  }
+
+  // 2. Cek waktu inaktivitas (Inactivity Timeout)
+  if (session.autoLogoutOnInactivity && session.inactivityMinutes > 0) {
+    const lastActive = new Date(session.lastActivityAt).getTime();
+    const idleMs = now - lastActive;
+    const maxIdleMs = session.inactivityMinutes * 60 * 1000;
+
+    if (idleMs > maxIdleMs) {
+      endSession('Sesi login terputus otomatis karena tidak ada aktivitas.');
+      return { isValid: false, reason: 'inactive', remainingSeconds: 0 };
+    }
+  }
+
+  return { isValid: true, remainingSeconds, session };
+}
+
+// Perpanjang sesi login (Keep-Alive)
+export function extendSession(additionalMinutes?: number): LoginSession | null {
+  const session = getActiveSession();
+  if (!session) return null;
+
+  const config = getSessionConfig();
+  const addMins = additionalMinutes || config.defaultDurationMinutes;
+  const now = new Date();
+  const newExpiresAt = new Date(now.getTime() + addMins * 60 * 1000);
+
+  const updated: LoginSession = {
+    ...session,
+    expiresAt: newExpiresAt.toISOString(),
+    lastActivityAt: now.toISOString(),
+    sessionDurationMinutes: session.sessionDurationMinutes + addMins
+  };
+
+  localStorage.setItem(STORAGE_KEYS.ACTIVE_SESSION, JSON.stringify(updated));
+  writeLog('Perpanjang Sesi', 'AUTH', session.userId, `Sesi login diperpanjang +${addMins} menit.`);
+  
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('simpendik_session_extended', { detail: { session: updated } }));
+  }
+
+  return updated;
+}
+
+// Perbarui waktu aktivitas terakhir (throttled)
+let lastActivityTouch = 0;
+export function touchSessionActivity(): void {
+  const now = Date.now();
+  if (now - lastActivityTouch < 10000) return; // Throttle ke 10 detik
+  lastActivityTouch = now;
+
+  const session = getActiveSession();
+  if (!session) return;
+
+  session.lastActivityAt = new Date().toISOString();
+  try {
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_SESSION, JSON.stringify(session));
+  } catch {}
+}
+
+// Akhiri sesi login
+export function endSession(reason?: string): void {
+  const session = getActiveSession();
+  const current = getCurrentUser();
+
+  if (session || current) {
+    writeLog(
+      'Sesi Berakhir', 
+      'AUTH', 
+      session?.userId || current.userId, 
+      reason || 'Pengguna keluar dari aplikasi.'
+    );
+  }
+
+  localStorage.removeItem(STORAGE_KEYS.ACTIVE_SESSION);
+  localStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'false');
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('simpendik_session_ended', { detail: { reason } }));
   }
 }
 
 // User & Auth Management
 export function isUserLoggedIn(): boolean {
   initLocalStorage();
-  return localStorage.getItem(STORAGE_KEYS.IS_LOGGED_IN) === 'true';
+  const val = validateSession();
+  return val.isValid;
 }
 
 export function getCurrentUser(): UserItem {
@@ -116,7 +321,11 @@ export function getCurrentUser(): UserItem {
   return raw ? JSON.parse(raw) : DEFAULT_USERS[0];
 }
 
-export function loginUser(email: string, password?: string): { success: boolean; message: string; user?: UserItem } {
+export function loginUser(
+  email: string, 
+  password?: string,
+  sessionOptions?: { durationMinutes?: number; rememberMe?: boolean }
+): { success: boolean; message: string; user?: UserItem; session?: LoginSession } {
   initLocalStorage();
   const trimmedEmail = email.trim().toLowerCase();
   const users = getUsers();
@@ -143,12 +352,15 @@ export function loginUser(email: string, password?: string): { success: boolean;
       users.push(newUser);
       localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
       localStorage.setItem(STORAGE_KEYS.ACTIVE_USER, JSON.stringify(newUser));
-      localStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'true');
-      writeLog('Login Otomatis SSO', 'AUTH', newUser.userId, `Registrasi & login SSO untuk ${newUser.email}`);
+      
+      const newSession = createSession(newUser, sessionOptions);
+      writeLog('Login Otomatis SSO', 'AUTH', newUser.userId, `Registrasi & login SSO untuk ${newUser.email}. Sesi: ${newSession.sessionId} (${newSession.sessionDurationMinutes}m)`);
+      
       return { 
         success: true, 
-        message: `Selamat datang, ${newUser.nama}! Anda berhasil masuk melalui SSO Unpad.`, 
-        user: newUser 
+        message: `Selamat datang, ${newUser.nama}! Anda berhasil masuk melalui SSO Unpad. Sesi aktif: ${newSession.sessionDurationMinutes} menit.`, 
+        user: newUser,
+        session: newSession
       };
     }
     return { 
@@ -168,7 +380,6 @@ export function loginUser(email: string, password?: string): { success: boolean;
 
   // Cek kata sandi jika ada
   if (foundUser.password && password) {
-    // Izinkan password akun atau password master demo untuk kemudahan
     const isMasterDemoPassword = password === 'admin123' || password === 'unpad123';
     if (password !== foundUser.password && !isMasterDemoPassword) {
       return {
@@ -188,23 +399,28 @@ export function loginUser(email: string, password?: string): { success: boolean;
   }
 
   localStorage.setItem(STORAGE_KEYS.ACTIVE_USER, JSON.stringify(foundUser));
-  localStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'true');
-  writeLog('Login Berhasil', 'AUTH', foundUser.userId, `Pengguna ${foundUser.email} (${foundUser.role}) berhasil masuk ke aplikasi`);
+  const newSession = createSession(foundUser, sessionOptions);
+
+  writeLog(
+    'Login Berhasil', 
+    'AUTH', 
+    foundUser.userId, 
+    `Pengguna ${foundUser.email} (${foundUser.role}) berhasil masuk. Sesi: ${newSession.sessionId} (${newSession.sessionDurationMinutes}m)`
+  );
 
   return {
     success: true,
-    message: `Selamat datang kembali, ${foundUser.nama}!`,
-    user: foundUser
+    message: `Selamat datang kembali, ${foundUser.nama}! Sesi aktif Anda berlaku ${newSession.sessionDurationMinutes} menit.`,
+    user: foundUser,
+    session: newSession
   };
 }
 
 export function logoutUser(): void {
-  const current = getCurrentUser();
-  writeLog('Logout', 'AUTH', current.userId, `Pengguna ${current.email} keluar dari aplikasi`);
-  localStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'false');
+  endSession('Pengguna menekan tombol Keluar / Logout.');
 }
 
-export function quickLoginUser(role: UserRole): { success: boolean; message: string; user?: UserItem } {
+export function quickLoginUser(role: UserRole): { success: boolean; message: string; user?: UserItem; session?: LoginSession } {
   const users = getUsers();
   const target = users.find(u => u.role === role && (u.status === 'Aktif' || u.statusAktif === 'Ya')) || users[0];
   return loginUser(target.email, target.password || 'admin123');
@@ -214,6 +430,14 @@ export function setActiveUserRole(role: UserRole): UserItem {
   const current = getCurrentUser();
   const updated: UserItem = { ...current, role };
   localStorage.setItem(STORAGE_KEYS.ACTIVE_USER, JSON.stringify(updated));
+
+  // Sync active session role
+  const session = getActiveSession();
+  if (session) {
+    session.role = role;
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_SESSION, JSON.stringify(session));
+  }
+
   writeLog('Ganti Role Simulasi', 'AUTH', updated.userId, `Role beralih ke ${role}`);
   return updated;
 }
@@ -448,7 +672,7 @@ export function writeLog(aktivitas: string, modul: string, idData: string, keter
   const now = new Date();
   const dateStr = now.toISOString().replace('T', ' ').substring(0, 19);
   
-  const raw = localStorage.getItem(STORAGE_KEYS.LOGS);
+  const raw = safeGetItem(STORAGE_KEYS.LOGS);
   const logs: LogAktivitas[] = raw ? JSON.parse(raw) : [];
 
   const newLog: LogAktivitas = {
@@ -463,13 +687,14 @@ export function writeLog(aktivitas: string, modul: string, idData: string, keter
   };
 
   logs.unshift(newLog);
-  if (logs.length > 500) logs.pop();
-  localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify(logs));
+  // Batasi log maksimal 60 entri agar tidak membebani kuota storage
+  if (logs.length > 60) logs.length = 60;
+  safeSetItem(STORAGE_KEYS.LOGS, JSON.stringify(logs));
 }
 
 export function getLogs(): LogAktivitas[] {
   initLocalStorage();
-  const raw = localStorage.getItem(STORAGE_KEYS.LOGS);
+  const raw = safeGetItem(STORAGE_KEYS.LOGS);
   return raw ? JSON.parse(raw) : [];
 }
 
@@ -825,14 +1050,68 @@ export function bulkImportPic(
 // PEGAWAI CRUD & SERVICES (Master Data Program)
 // ==========================================
 
+export function normalizePegawai(raw: Partial<Pegawai>, index = 1): Pegawai {
+  return {
+    id: raw.id || `PEG-${String(index).padStart(3, '0')}`,
+    no: raw.no !== undefined ? raw.no : index,
+    nip: String(raw.nip || '-').trim(),
+    nama: String(raw.nama || '').trim(),
+    kartuPegawai: raw.kartuPegawai || '',
+    statusKepegawaian: raw.statusKepegawaian || 'PNS',
+    unitKerja: raw.unitKerja || 'Direktorat Pendidikan Non Gelar',
+    bagian: raw.bagian || '',
+    bidangKerja: raw.bidangKerja || '',
+    nidnNuptk: raw.nidnNuptk || '',
+    statusAktif: raw.statusAktif || 'Aktif',
+    keteranganStatusAktif: raw.keteranganStatusAktif || '',
+    tanggalDitetapkanStatus: raw.tanggalDitetapkanStatus || '',
+    tempatLahir: raw.tempatLahir || '',
+    tanggalLahir: raw.tanggalLahir || '',
+    jenisKelamin: raw.jenisKelamin || 'Laki-laki',
+    agama: raw.agama || 'Islam',
+    golonganDarah: raw.golonganDarah || '',
+    sukuBangsa: raw.sukuBangsa || '',
+    kewarganegaraan: raw.kewarganegaraan || 'WNI',
+    statusMarital: raw.statusMarital || 'Kawin',
+    alamat: raw.alamat || '',
+    kecamatan: raw.kecamatan || '',
+    kelurahan: raw.kelurahan || '',
+    rt: raw.rt || '',
+    rw: raw.rw || '',
+    kota: raw.kota || '',
+    propinsi: raw.propinsi || 'Jawa Barat',
+    kodePos: raw.kodePos || '',
+    telepon: raw.telepon || '',
+    hp: raw.hp || '',
+    email: raw.email || '',
+    lembagaPendidikan: raw.lembagaPendidikan || '',
+    jenjang: raw.jenjang || 'S1',
+    jurusan: raw.jurusan || '',
+    tempat: raw.tempat || '',
+    tahunLulus: raw.tahunLulus || new Date().getFullYear(),
+    gelarDepan: raw.gelarDepan || '',
+    gelarBelakang: raw.gelarBelakang || '',
+    pangkat: raw.pangkat || '',
+    golongan: raw.golongan || '',
+    jabatanStruktural: raw.jabatanStruktural || '',
+    periode: raw.periode || '',
+    unitKerjaJabatanStruktural: raw.unitKerjaJabatanStruktural || '',
+    jabatanFungsional: raw.jabatanFungsional || '',
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt
+  };
+}
+
 export function getPegawai(): Pegawai[] {
   initLocalStorage();
-  const raw = localStorage.getItem(STORAGE_KEYS.PEGAWAI);
+  const raw = safeGetItem(STORAGE_KEYS.PEGAWAI);
   if (!raw) return DEFAULT_PEGAWAI;
   try {
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return DEFAULT_PEGAWAI;
+    return parsed.map((p, idx) => normalizePegawai(p, p.no || idx + 1));
   } catch (e) {
-    console.error('Error parsing Pegawai from localStorage:', e);
+    console.error('Error parsing Pegawai from storage:', e);
     return DEFAULT_PEGAWAI;
   }
 }
@@ -846,14 +1125,17 @@ export function savePegawai(pegawai: Pegawai): { success: boolean; message: stri
   const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
   const idx = list.findIndex(p => p.id === pegawai.id);
 
+  let target: Pegawai;
+
   if (idx >= 0) {
-    list[idx] = {
+    target = normalizePegawai({
       ...pegawai,
       updatedAt: now
-    };
-    localStorage.setItem(STORAGE_KEYS.PEGAWAI, JSON.stringify(list));
+    }, list[idx].no || idx + 1);
+    list[idx] = target;
+    safeSetItem(STORAGE_KEYS.PEGAWAI, JSON.stringify(list));
     writeLog('Edit Pegawai', 'PEGAWAI', pegawai.id, `Update pegawai ${pegawai.nama} (NIP: ${pegawai.nip})`);
-    return { success: true, message: `Data pegawai ${pegawai.nama} berhasil diperbarui!`, data: list[idx] };
+    return { success: true, message: `Data pegawai ${pegawai.nama} berhasil diperbarui!`, data: target };
   } else {
     // Generate sequential ID: PEG-001, PEG-002, etc.
     let maxSeq = 0;
@@ -864,17 +1146,17 @@ export function savePegawai(pegawai: Pegawai): { success: boolean; message: stri
       }
     });
     const newId = `PEG-${String(maxSeq + 1).padStart(3, '0')}`;
-    const newPegawai: Pegawai = {
+    target = normalizePegawai({
       ...pegawai,
       id: newId,
       no: maxSeq + 1,
       createdAt: now,
       updatedAt: now
-    };
-    list.push(newPegawai);
-    localStorage.setItem(STORAGE_KEYS.PEGAWAI, JSON.stringify(list));
-    writeLog('Tambah Pegawai', 'PEGAWAI', newId, `Tambah pegawai baru ${newPegawai.nama} (NIP: ${newPegawai.nip})`);
-    return { success: true, message: `Pegawai baru ${newPegawai.nama} berhasil ditambahkan!`, data: newPegawai };
+    }, maxSeq + 1);
+    list.push(target);
+    safeSetItem(STORAGE_KEYS.PEGAWAI, JSON.stringify(list));
+    writeLog('Tambah Pegawai', 'PEGAWAI', newId, `Tambah pegawai baru ${target.nama} (NIP: ${target.nip})`);
+    return { success: true, message: `Pegawai baru ${target.nama} berhasil ditambahkan!`, data: target };
   }
 }
 
@@ -888,14 +1170,14 @@ export function updatePegawai(id: string, data: Partial<Pegawai>): { success: bo
   if (idx < 0) {
     return { success: false, message: 'Data pegawai tidak ditemukan.' };
   }
-  const updated: Pegawai = {
+  const updated = normalizePegawai({
     ...list[idx],
     ...data,
     id,
     updatedAt: new Date().toISOString().replace('T', ' ').substring(0, 19)
-  };
+  }, list[idx].no || idx + 1);
   list[idx] = updated;
-  localStorage.setItem(STORAGE_KEYS.PEGAWAI, JSON.stringify(list));
+  safeSetItem(STORAGE_KEYS.PEGAWAI, JSON.stringify(list));
   writeLog('Edit Pegawai', 'PEGAWAI', id, `Update data pegawai ${updated.nama}`);
   return { success: true, message: `Data pegawai ${updated.nama} berhasil diperbarui!`, data: updated };
 }
@@ -908,7 +1190,7 @@ export function deletePegawai(id: string): { success: boolean; message: string }
   }
 
   const updated = list.filter(p => p.id !== id);
-  localStorage.setItem(STORAGE_KEYS.PEGAWAI, JSON.stringify(updated));
+  safeSetItem(STORAGE_KEYS.PEGAWAI, JSON.stringify(updated));
   writeLog('Hapus Pegawai', 'PEGAWAI', id, `Hapus pegawai ${target.nama} (NIP: ${target.nip})`);
   return { success: true, message: `Data pegawai ${target.nama} berhasil dihapus dari database.` };
 }
@@ -925,7 +1207,7 @@ export function deleteMultiplePegawai(ids: string[]): { success: boolean; count:
   }
 
   const filtered = list.filter(p => !idSet.has(p.id));
-  localStorage.setItem(STORAGE_KEYS.PEGAWAI, JSON.stringify(filtered));
+  safeSetItem(STORAGE_KEYS.PEGAWAI, JSON.stringify(filtered));
   writeLog(
     'Hapus Pegawai Massal',
     'PEGAWAI',
@@ -951,117 +1233,103 @@ export function bulkImportPegawai(
   skippedCount: number;
   data: Pegawai[];
 } {
-  const list = getPegawai();
-  const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
-  let count = 0;
-  let updatedCount = 0;
-  let skippedCount = 0;
+  try {
+    // 1. Bersihkan snapshot lama secara proaktif untuk memberi ruang penyimpanan
+    pruneStorageOnQuotaError();
 
-  let maxSeq = 0;
-  list.forEach(p => {
-    if (p.id && p.id.startsWith('PEG-')) {
-      const num = parseInt(p.id.replace('PEG-', ''), 10);
-      if (!isNaN(num) && num > maxSeq) maxSeq = num;
-    }
-  });
+    const list = getPegawai();
+    const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    let count = 0;
+    let updatedCount = 0;
+    let skippedCount = 0;
 
-  items.forEach(item => {
-    const nip = String(item.nip || '').trim();
-    const nama = String(item.nama || '').trim();
-    if (!nama) return;
+    let maxSeq = 0;
+    list.forEach(p => {
+      if (p.id && p.id.startsWith('PEG-')) {
+        const num = parseInt(p.id.replace('PEG-', ''), 10);
+        if (!isNaN(num) && num > maxSeq) maxSeq = num;
+      }
+    });
 
-    // Duplicate check by NIP or ID
-    const existingIdx = list.findIndex(p => 
-      (nip && p.nip === nip) || 
-      (item.id && p.id === item.id)
-    );
-
-    if (existingIdx >= 0) {
-      if (mode === 'skip') {
+    items.forEach(item => {
+      const nip = String(item.nip || '').trim();
+      const nama = String(item.nama || '').trim();
+      if (!nama) {
         skippedCount++;
         return;
-      } else if (mode === 'update') {
-        list[existingIdx] = {
-          ...list[existingIdx],
-          ...item,
-          updatedAt: now
-        };
-        updatedCount++;
-        return;
       }
+
+      // Duplicate check by NIP or ID
+      const existingIdx = list.findIndex(p => 
+        (nip && nip !== '-' && p.nip.trim() === nip) || 
+        (item.id && p.id === item.id)
+      );
+
+      if (existingIdx >= 0) {
+        if (mode === 'skip') {
+          skippedCount++;
+          return;
+        } else if (mode === 'update') {
+          list[existingIdx] = normalizePegawai({
+            ...list[existingIdx],
+            ...item,
+            id: list[existingIdx].id,
+            updatedAt: now
+          }, list[existingIdx].no || existingIdx + 1);
+          updatedCount++;
+          return;
+        }
+      }
+
+      maxSeq++;
+      const newId = `PEG-${String(maxSeq).padStart(3, '0')}`;
+      const newPegawai = normalizePegawai({
+        ...item,
+        id: newId,
+        no: maxSeq,
+        nip: nip || '-',
+        nama,
+        createdAt: now,
+        updatedAt: now
+      }, maxSeq);
+
+      list.push(newPegawai);
+      count++;
+    });
+
+    // Simpan ke storage dengan driver yang aman (In-Memory + LZ16 Compression + IndexedDB)
+    safeSetItem(STORAGE_KEYS.PEGAWAI, JSON.stringify(list));
+
+    try {
+      writeLog(
+        'Import Pegawai',
+        'PEGAWAI',
+        `BULK-${count + updatedCount}`,
+        `Import data pegawai via Excel/CSV: ${count} ditambah, ${updatedCount} diperbarui, ${skippedCount} dilewati.`
+      );
+    } catch {
+      // Non-fatal if logs table is pruned
     }
 
-    maxSeq++;
-    const newId = `PEG-${String(maxSeq).padStart(3, '0')}`;
-    const newPegawai: Pegawai = {
-      id: newId,
-      no: maxSeq,
-      nip: nip || '-',
-      nama,
-      kartuPegawai: item.kartuPegawai || '',
-      statusKepegawaian: item.statusKepegawaian || 'PNS',
-      unitKerja: item.unitKerja || 'Direktorat Pendidikan Non Gelar',
-      bagian: item.bagian || '',
-      bidangKerja: item.bidangKerja || '',
-      nidnNuptk: item.nidnNuptk || '',
-      statusAktif: item.statusAktif || 'Aktif',
-      keteranganStatusAktif: item.keteranganStatusAktif || '',
-      tanggalDitetapkanStatus: item.tanggalDitetapkanStatus || '',
-      tempatLahir: item.tempatLahir || '',
-      tanggalLahir: item.tanggalLahir || '',
-      jenisKelamin: item.jenisKelamin || 'Laki-laki',
-      agama: item.agama || 'Islam',
-      golonganDarah: item.golonganDarah || '',
-      sukuBangsa: item.sukuBangsa || '',
-      kewarganegaraan: item.kewarganegaraan || 'WNI',
-      statusMarital: item.statusMarital || 'Kawin',
-      alamat: item.alamat || '',
-      kecamatan: item.kecamatan || '',
-      kelurahan: item.kelurahan || '',
-      rt: item.rt || '',
-      rw: item.rw || '',
-      kota: item.kota || '',
-      propinsi: item.propinsi || '',
-      kodePos: item.kodePos || '',
-      telepon: item.telepon || '',
-      hp: item.hp || '',
-      email: item.email || '',
-      lembagaPendidikan: item.lembagaPendidikan || '',
-      jenjang: item.jenjang || '',
-      jurusan: item.jurusan || '',
-      tempat: item.tempat || '',
-      tahunLulus: item.tahunLulus || '',
-      gelarDepan: item.gelarDepan || '',
-      gelarBelakang: item.gelarBelakang || '',
-      pangkat: item.pangkat || '',
-      golongan: item.golongan || '',
-      jabatanStruktural: item.jabatanStruktural || '',
-      periode: item.periode || '',
-      unitKerjaJabatanStruktural: item.unitKerjaJabatanStruktural || '',
-      jabatanFungsional: item.jabatanFungsional || '',
-      createdAt: now,
-      updatedAt: now
+    return {
+      success: true,
+      message: `Berhasil mengimpor data pegawai! ${count} data baru ditambahkan, ${updatedCount} diperbarui${skippedCount > 0 ? `, ${skippedCount} data dilewati` : ''}.`,
+      count,
+      updatedCount,
+      skippedCount,
+      data: list
     };
-    list.push(newPegawai);
-    count++;
-  });
-
-  localStorage.setItem(STORAGE_KEYS.PEGAWAI, JSON.stringify(list));
-  writeLog(
-    'Import Pegawai',
-    'PEGAWAI',
-    `BULK-${count + updatedCount}`,
-    `Import data pegawai via Excel/CSV: ${count} ditambah, ${updatedCount} diperbarui, ${skippedCount} dilewati.`
-  );
-
-  return {
-    success: true,
-    message: `Berhasil mengimpor data pegawai! ${count} data baru ditambahkan, ${updatedCount} diperbarui${skippedCount > 0 ? `, ${skippedCount} data dilewati` : ''}.`,
-    count,
-    updatedCount,
-    skippedCount,
-    data: list
-  };
+  } catch (err: any) {
+    console.error('Error during bulkImportPegawai:', err);
+    return {
+      success: false,
+      message: `Gagal memproses impor: ${err?.message || 'Terjadi kesalahan sistem'}`,
+      count: 0,
+      updatedCount: 0,
+      skippedCount: 0,
+      data: getPegawai()
+    };
+  }
 }
 
 // Peserta CRUD & Concurrency ID Protection
@@ -2551,7 +2819,7 @@ export function restoreSystemBackup(
 
 export function getSnapshots(): BackupSnapshotItem[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.SNAPSHOTS);
+    const raw = safeGetItem(STORAGE_KEYS.SNAPSHOTS);
     if (!raw) return [];
     return JSON.parse(raw);
   } catch {
@@ -2591,9 +2859,9 @@ export function createSafetySnapshot(
   };
 
   const existing = getSnapshots();
-  // Simpan maksimal 15 snapshot terbaru agar tidak memenuhi quota localStorage
-  const updated = [newSnapshot, ...existing].slice(0, 15);
-  localStorage.setItem(STORAGE_KEYS.SNAPSHOTS, JSON.stringify(updated));
+  // Simpan maksimal 3 snapshot terbaru agar tidak memenuhi quota localStorage (setiap snapshot menyimpan seluruh basis data)
+  const updated = [newSnapshot, ...existing].slice(0, 3);
+  safeSetItem(STORAGE_KEYS.SNAPSHOTS, JSON.stringify(updated));
 
   writeLog(
     'Buat Snapshot',
@@ -2638,12 +2906,12 @@ export function restoreSnapshot(
 export function deleteSnapshot(snapshotId: string): { success: boolean; message: string } {
   const snapshots = getSnapshots();
   const filtered = snapshots.filter(s => s.id !== snapshotId);
-  localStorage.setItem(STORAGE_KEYS.SNAPSHOTS, JSON.stringify(filtered));
+  safeSetItem(STORAGE_KEYS.SNAPSHOTS, JSON.stringify(filtered));
   return { success: true, message: 'Snapshot berhasil dihapus.' };
 }
 
 export function clearAllSnapshots(): { success: boolean; message: string } {
-  localStorage.removeItem(STORAGE_KEYS.SNAPSHOTS);
+  safeRemoveItem(STORAGE_KEYS.SNAPSHOTS);
   return { success: true, message: 'Seluruh snapshot lokal telah dibersihkan.' };
 }
 

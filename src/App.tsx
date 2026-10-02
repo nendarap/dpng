@@ -22,6 +22,7 @@ import { EduventureView } from './components/EduventureView';
 import { BackupRestoreView } from './components/BackupRestoreView';
 import { GoogleSheetConnectionModal } from './components/GoogleSheetConnectionModal';
 import { PegawaiView } from './components/PegawaiView';
+import { SessionManager } from './components/SessionManager';
 
 import { 
   Peserta, Kategori, Program, PicProgram, UserItem, LogAktivitas, SettingApp, UserRole,
@@ -101,6 +102,15 @@ export default function App() {
     setSettings(getSettings());
   };
 
+  // Listen to background storage hydration events (IndexedDB -> Memory/LocalStorage)
+  useEffect(() => {
+    const handleHydrated = () => {
+      refreshAllData();
+    };
+    window.addEventListener('simpendik_storage_hydrated', handleHydrated);
+    return () => window.removeEventListener('simpendik_storage_hydrated', handleHydrated);
+  }, []);
+
   // Authentication Handlers
   const handleLoginSuccess = (user: UserItem) => {
     setIsLoggedIn(true);
@@ -113,6 +123,11 @@ export default function App() {
     logoutUser();
     setIsLoggedIn(false);
     showToast('Anda telah keluar dari aplikasi.', 'success');
+  };
+
+  const handleSessionExpired = () => {
+    setIsLoggedIn(false);
+    showToast('Sesi login Anda telah berakhir demi keamanan data. Silakan masuk kembali.', 'error');
   };
 
   // Profile & Theme Handlers
@@ -470,6 +485,13 @@ export default function App() {
         currentTheme={currentTheme}
         onUpdateUser={handleUpdateUser}
         onThemeChange={handleThemeChange}
+        onShowToast={showToast}
+      />
+
+      {/* Background Session Manager (Countdown & Warning Modal) */}
+      <SessionManager 
+        onSessionExpired={handleSessionExpired} 
+        onShowToast={showToast} 
       />
 
       {/* Main Content Layout */}

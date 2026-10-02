@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Lock, Mail, Eye, EyeOff, ShieldCheck, ArrowRight, 
   CheckCircle2, AlertCircle, GraduationCap, Building2, Sparkles,
-  Megaphone, Info, AlertTriangle
+  Megaphone, Info, AlertTriangle, Clock
 } from 'lucide-react';
 import { UserItem, LoginSettings } from '../types';
 import { loginUser } from '../services/storageService';
@@ -26,6 +26,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [sessionDurationMinutes, setSessionDurationMinutes] = useState<number>(60);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -41,7 +42,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
     setIsLoading(true);
 
     setTimeout(() => {
-      const res = loginUser(email, password);
+      const res = loginUser(email, password, {
+        durationMinutes: sessionDurationMinutes,
+        rememberMe
+      });
       setIsLoading(false);
 
       if (res.success && res.user) {
@@ -59,7 +63,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
     setTimeout(() => {
       // Login as user's unpad account
       const ssoEmail = 'nendar@unpad.ac.id';
-      const res = loginUser(ssoEmail, 'admin123');
+      const res = loginUser(ssoEmail, 'admin123', {
+        durationMinutes: sessionDurationMinutes,
+        rememberMe
+      });
       setIsLoading(false);
       if (res.success && res.user) {
         onLoginSuccess(res.user);
@@ -301,17 +308,39 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 </div>
               </div>
 
-              {/* Remember Me Checkbox */}
-              <div className="flex items-center justify-between pt-1">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="rounded border-slate-300 text-[#002B66] focus:ring-[#002B66] w-4 h-4 cursor-pointer"
-                  />
-                  <span className="text-xs text-slate-600 font-medium">Ingat sesi di perangkat ini</span>
-                </label>
+              {/* Session Duration Selector & Remember Me */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="select-session-duration" className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                    <Clock className="w-3.5 h-3.5 text-[#002B66]" />
+                    <span>Durasi Sesi Login:</span>
+                  </label>
+                  <select
+                    id="select-session-duration"
+                    value={sessionDurationMinutes}
+                    onChange={(e) => setSessionDurationMinutes(Number(e.target.value))}
+                    className="bg-white border border-slate-300 text-slate-800 text-xs font-semibold rounded-lg px-2.5 py-1 focus:ring-1 focus:ring-[#002B66] outline-none cursor-pointer"
+                  >
+                    <option value={30}>30 Menit (Publik / Lab)</option>
+                    <option value={60}>1 Jam (Standar Kerja)</option>
+                    <option value={480}>8 Jam (1 Hari Penuh)</option>
+                    <option value={1440}>24 Jam (Seharian)</option>
+                    <option value={10080}>7 Hari (Perangkat Pribadi)</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="rounded border-slate-300 text-[#002B66] focus:ring-[#002B66] w-4 h-4 cursor-pointer"
+                    />
+                    <span className="text-xs text-slate-600 font-medium">Ingat sesi di perangkat ini</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400">Auto-timeout jika inaktif</span>
+                </div>
               </div>
 
               {/* Submit Button */}

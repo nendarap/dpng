@@ -2,16 +2,21 @@ import React, { useState } from 'react';
 import { 
   Settings, Save, Database, RefreshCw, CheckCircle2, 
   AlertTriangle, Shield, Globe, FileCode, Sliders, Image as ImageIcon,
-  DatabaseBackup, Download, ExternalLink, FileSpreadsheet, Link2
+  DatabaseBackup, Download, ExternalLink, FileSpreadsheet, Link2,
+  Clock, Lock, ShieldCheck, User, Calendar
 } from 'lucide-react';
-import { SettingApp, LoginSettings } from '../types';
+import { SettingApp, LoginSettings, SessionConfig, LoginSession } from '../types';
 import { UnpadLogo } from './UnpadLogo';
 import { LoginSettingsTab } from './LoginSettingsTab';
 import { DEFAULT_LOGIN_SETTINGS } from '../data/loginPresets';
 import { 
   generateSystemBackup, 
   extractSpreadsheetId, 
-  getGoogleSheetUrl 
+  getGoogleSheetUrl,
+  getSessionConfig,
+  saveSessionConfig,
+  getActiveSession,
+  extendSession
 } from '../services/storageService';
 
 interface PengaturanViewProps {
@@ -33,11 +38,13 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
   onNavigateToBackupRestore,
   isAdmin = true,
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'system' | 'login'>('system');
+  const [activeSubTab, setActiveSubTab] = useState<'system' | 'login' | 'session'>('system');
   const [formData, setFormData] = useState<SettingApp>({ 
     ...settings,
     loginSettings: settings.loginSettings || DEFAULT_LOGIN_SETTINGS
   });
+  const [sessionConfig, setSessionConfig] = useState<SessionConfig>(() => getSessionConfig());
+  const [activeSession, setActiveSession] = useState<LoginSession | null>(() => getActiveSession());
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [testResult, setTestResult] = useState<{ status: 'idle' | 'testing' | 'success' | 'failed'; message: string }>({
     status: 'idle',
@@ -52,6 +59,22 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
     };
     setFormData(updated);
     onSaveSettings(updated);
+  };
+
+  const handleSaveSessionConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    saveSessionConfig(sessionConfig);
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 3000);
+  };
+
+  const handleExtendCurrentSession = () => {
+    const updated = extendSession(30);
+    if (updated) {
+      setActiveSession(updated);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -128,9 +151,186 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
             Super Admin
           </span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveSession(getActiveSession());
+            setActiveSubTab('session');
+          }}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+            activeSubTab === 'session'
+              ? 'border-[#002B66] text-[#002B66]'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Clock className="w-4 h-4 text-emerald-600" />
+          <span>Manajemen Sesi Login</span>
+        </button>
       </div>
 
-      {activeSubTab === 'login' ? (
+      {activeSubTab === 'session' ? (
+        <div className="space-y-6 text-xs">
+          {/* Active Session Status Card */}
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                  <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-sm">Sesi Login Anda Saat Ini</h3>
+                  <p className="text-[11px] text-slate-500">Status autentikasi aktif pada peramban ini</p>
+                </div>
+              </div>
+              <span className="px-3 py-1 bg-emerald-50 text-emerald-700 font-bold rounded-full border border-emerald-200 text-xs flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                Aktif & Terverifikasi
+              </span>
+            </div>
+
+            {activeSession ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">ID Sesi:</span>
+                    <strong className="font-mono text-slate-800">{activeSession.sessionId}</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Pengguna:</span>
+                    <strong className="text-slate-800">{activeSession.nama} ({activeSession.role})</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Email:</span>
+                    <span className="text-blue-700 font-mono">{activeSession.email}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Mode "Ingat Saya":</span>
+                    <span className="font-bold text-slate-700">{activeSession.rememberMe ? 'Ya (Aktif)' : 'Tidak'}</span>
+                  </div>
+                </div>
+
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Waktu Mulai:</span>
+                    <span className="font-mono">{new Date(activeSession.loginAt).toLocaleString('id-ID')}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Berakhir Pada:</span>
+                    <span className="font-mono font-bold text-amber-700">{new Date(activeSession.expiresAt).toLocaleString('id-ID')}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Durasi Terkonfigurasi:</span>
+                    <strong className="text-slate-800">{activeSession.sessionDurationMinutes} Menit</strong>
+                  </div>
+                  <div className="pt-1 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleExtendCurrentSession}
+                      className="px-3 py-1.5 bg-[#002B66] hover:bg-[#083a7e] text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 text-[#FDB913]" />
+                      <span>Perpanjang Sesi (+30 Menit)</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-slate-500">Tidak ada data sesi aktif.</p>
+            )}
+          </div>
+
+          {/* Configuration Form */}
+          <form onSubmit={handleSaveSessionConfig} className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-4">
+            <div className="flex items-center gap-2.5 border-b border-slate-200 pb-3">
+              <div className="w-9 h-9 rounded-xl bg-blue-100 text-[#002B66] flex items-center justify-center font-bold">
+                <Lock className="w-5 h-5 text-[#002B66]" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-sm">Kebijakan Sesi & Keamanan Global</h3>
+                <p className="text-[11px] text-slate-500">Atur masa kedaluwarsa sesi dan deteksi inaktivitas pengguna</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Durasi Sesi Default (Menit)
+                </label>
+                <select
+                  value={sessionConfig.defaultDurationMinutes}
+                  onChange={(e) => setSessionConfig({ ...sessionConfig, defaultDurationMinutes: Number(e.target.value) })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-semibold focus:ring-1 focus:ring-[#002B66] outline-none"
+                >
+                  <option value={30}>30 Menit (Publik / Lab Bersama)</option>
+                  <option value={60}>60 Menit (1 Jam - Standar)</option>
+                  <option value={120}>120 Menit (2 Jam)</option>
+                  <option value={480}>480 Menit (8 Jam - 1 Hari Kerja)</option>
+                  <option value={1440}>1440 Menit (24 Jam)</option>
+                </select>
+                <p className="text-[10px] text-slate-400 mt-1">Masa berlaku sesi login sejak pengguna berhasil autentikasi.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Batas Inaktivitas Otomatis (Menit)
+                </label>
+                <select
+                  value={sessionConfig.inactivityTimeoutMinutes}
+                  onChange={(e) => setSessionConfig({ ...sessionConfig, inactivityTimeoutMinutes: Number(e.target.value) })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-semibold focus:ring-1 focus:ring-[#002B66] outline-none"
+                >
+                  <option value={15}>15 Menit Tidak Ada Interaksi</option>
+                  <option value={30}>30 Menit Tidak Ada Interaksi (Rekomendasi)</option>
+                  <option value={60}>60 Menit Tidak Ada Interaksi</option>
+                </select>
+                <p className="text-[10px] text-slate-400 mt-1">Otomatis logout jika pengguna tidak menggerakkan tetikus/mengetik.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Peringatan Pra-Timeout (Menit Sebelum Berakhir)
+                </label>
+                <select
+                  value={sessionConfig.showWarningBeforeMinutes}
+                  onChange={(e) => setSessionConfig({ ...sessionConfig, showWarningBeforeMinutes: Number(e.target.value) })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-semibold focus:ring-1 focus:ring-[#002B66] outline-none"
+                >
+                  <option value={1}>1 Menit Sebelum Berakhir</option>
+                  <option value={2}>2 Menit Sebelum Berakhir (Rekomendasi)</option>
+                  <option value={5}>5 Menit Sebelum Berakhir</option>
+                </select>
+                <p className="text-[10px] text-slate-400 mt-1">Menampilkan kotak dialog konfirmasi perpanjang sesi.</p>
+              </div>
+
+              <div className="flex items-center pt-5">
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={sessionConfig.enableInactivityTimeout}
+                    onChange={(e) => setSessionConfig({ ...sessionConfig, enableInactivityTimeout: e.target.checked })}
+                    className="w-4 h-4 rounded text-[#002B66] focus:ring-[#002B66] border-slate-300 cursor-pointer"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">Aktifkan Auto-Logout Inaktivitas</span>
+                    <span className="text-[11px] text-slate-500">Meningkatkan kepatuhan standar keamanan data universitas</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-slate-200">
+              <button
+                type="submit"
+                className="px-5 py-2.5 bg-[#002B66] hover:bg-[#083a7e] text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
+              >
+                <Save className="w-4 h-4 text-[#FDB913]" />
+                <span>Simpan Pengaturan Sesi</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : activeSubTab === 'login' ? (
         <LoginSettingsTab
           loginSettings={formData.loginSettings || DEFAULT_LOGIN_SETTINGS}
           onSaveLoginSettings={handleSaveLoginSettings}
