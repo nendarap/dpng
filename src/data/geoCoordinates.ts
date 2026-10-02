@@ -1,5 +1,6 @@
 // Data Koordinat Geografis Wilayah Indonesia & Kampus Unpad
 // Untuk Visualisasi Dashboard Peta SIMPENDIK Non Gelar Unpad
+import { Peserta } from '../types';
 
 export interface CampusLocation {
   id: string;
@@ -397,4 +398,143 @@ export function resolveEduventureSchoolLocation(alamat: string, namaSekolah: str
     distanceKm: 25
   };
 }
+
+/**
+ * Menghitung koordinat dan wilayah instansi peserta secara akurat
+ * Menggabungkan informasi kota/kabupaten & provinsi peserta dari instansi tersebut,
+ * deteksi nama instansi, serta memberikan sedikit sebaran spasial (jitter) agar
+ * marker instansi yang berada di satu kota tidak saling menumpuk.
+ */
+export function resolveInstansiCoordinate(
+  instansiName: string, 
+  pesertaList: Peserta[] = []
+): {
+  lat: number;
+  lng: number;
+  kota: string;
+  provinsi: string;
+} {
+  const cleanName = (instansiName || '').trim();
+  const lowerName = cleanName.toLowerCase();
+
+  // 1. Kumpulkan frekuensi kota & provinsi dari peserta yang terdaftar pada instansi ini
+  const cityCounts: Record<string, number> = {};
+  const provCounts: Record<string, number> = {};
+
+  pesertaList.forEach(p => {
+    if (p.kotaKabupaten && p.kotaKabupaten.trim()) {
+      const c = p.kotaKabupaten.trim();
+      cityCounts[c] = (cityCounts[c] || 0) + 1;
+    }
+    if (p.provinsi && p.provinsi.trim()) {
+      const pr = p.provinsi.trim();
+      provCounts[pr] = (provCounts[pr] || 0) + 1;
+    }
+  });
+
+  const bestCity = Object.entries(cityCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+  const bestProv = Object.entries(provCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+
+  let targetKota = bestCity || '';
+  let targetProv = bestProv || '';
+  let baseCoords: [number, number] | null = null;
+
+  // Jika peserta memiliki kota, cari koordinatnya
+  if (targetKota) {
+    baseCoords = getParticipantCoordinate(targetProv, targetKota);
+  }
+
+  // Jika belum ketemu atau peserta tidak memiliki kota spesifik, deteksi dari nama instansi
+  if (!baseCoords || (baseCoords[0] === -6.9261 && baseCoords[1] === 107.7747 && !lowerName.includes('unpad') && !lowerName.includes('jatinangor'))) {
+    // Cari kota di nama instansi
+    for (const [cityKey, coord] of Object.entries(CITY_COORDINATES)) {
+      const searchTarget = cityKey.toLowerCase().replace(/^(kota|kab\.|kabupaten)\s+/, '');
+      if (lowerName.includes(searchTarget) || lowerName.includes(cityKey.toLowerCase())) {
+        baseCoords = coord;
+        targetKota = cityKey;
+        // Tentukan provinsi
+        if (!targetProv) {
+          if (['jakarta pusat', 'jakarta selatan', 'jakarta barat', 'jakarta timur', 'jakarta utara'].some(j => cityKey.toLowerCase().includes(j))) {
+            targetProv = 'DKI Jakarta';
+          } else if (['tangerang', 'serang', 'cilegon'].some(b => cityKey.toLowerCase().includes(b))) {
+            targetProv = 'Banten';
+          } else if (['semarang', 'surakarta', 'solo', 'magelang', 'purwokerto'].some(jt => cityKey.toLowerCase().includes(jt))) {
+            targetProv = 'Jawa Tengah';
+          } else if (['yogyakarta', 'sleman', 'bantul'].some(y => cityKey.toLowerCase().includes(y))) {
+            targetProv = 'DI Yogyakarta';
+          } else if (['surabaya', 'malang', 'kediri'].some(jtm => cityKey.toLowerCase().includes(jtm))) {
+            targetProv = 'Jawa Timur';
+          } else if (['medan', 'padang', 'palembang', 'pekanbaru', 'lampung'].some(s => cityKey.toLowerCase().includes(s))) {
+            targetProv = 'Sumatera';
+          } else if (['makassar', 'manado'].some(sul => cityKey.toLowerCase().includes(sul))) {
+            targetProv = 'Sulawesi';
+          } else {
+            targetProv = 'Jawa Barat';
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  // Cek kata kunci khusus institusi ternama
+  if (!baseCoords) {
+    if (lowerName.includes('siliwangi') || lowerName.includes('unsil')) {
+      baseCoords = CITY_COORDINATES['Kota Tasikmalaya'];
+      targetKota = 'Kota Tasikmalaya';
+      targetProv = 'Jawa Barat';
+    } else if (lowerName.includes('hasan sadikin') || lowerName.includes('rshs') || lowerName.includes('itb') || lowerName.includes('upi') || lowerName.includes('telkom')) {
+      baseCoords = CITY_COORDINATES['Kota Bandung'];
+      targetKota = 'Kota Bandung';
+      targetProv = 'Jawa Barat';
+    } else if (lowerName.includes('ui') || lowerName.includes('indonesia') || lowerName.includes('kemen') || lowerName.includes('bumn')) {
+      baseCoords = CITY_COORDINATES['Jakarta Pusat'];
+      targetKota = 'Jakarta Pusat';
+      targetProv = 'DKI Jakarta';
+    } else if (lowerName.includes('ugm')) {
+      baseCoords = CITY_COORDINATES['Kota Yogyakarta'];
+      targetKota = 'Kota Yogyakarta';
+      targetProv = 'DI Yogyakarta';
+    } else if (lowerName.includes('unair') || lowerName.includes('its')) {
+      baseCoords = CITY_COORDINATES['Kota Surabaya'];
+      targetKota = 'Kota Surabaya';
+      targetProv = 'Jawa Timur';
+    } else if (lowerName.includes('undip')) {
+      baseCoords = CITY_COORDINATES['Kota Semarang'];
+      targetKota = 'Kota Semarang';
+      targetProv = 'Jawa Tengah';
+    } else if (lowerName.includes('usu')) {
+      baseCoords = CITY_COORDINATES['Kota Medan'];
+      targetKota = 'Kota Medan';
+      targetProv = 'Sumatera Utara';
+    } else if (lowerName.includes('unhas')) {
+      baseCoords = CITY_COORDINATES['Kota Makassar'];
+      targetKota = 'Kota Makassar';
+      targetProv = 'Sulawesi Selatan';
+    } else {
+      // Default: Bandung / Jawa Barat
+      baseCoords = CITY_COORDINATES['Kota Bandung'];
+      targetKota = targetKota || 'Kota Bandung';
+      targetProv = targetProv || 'Jawa Barat';
+    }
+  }
+
+  // Hitung hash deterministik untuk jitter koordinat agar instansi di kota yang sama tidak bertumpuk
+  let hash = 0;
+  for (let i = 0; i < cleanName.length; i++) {
+    hash = (hash << 5) - hash + cleanName.charCodeAt(i);
+    hash |= 0;
+  }
+  const absHash = Math.abs(hash);
+  const angle = (absHash % 360) * (Math.PI / 180);
+  const distance = 0.005 + ((absHash >> 3) % 15) * 0.001; // ~500m - 2km
+
+  return {
+    lat: Number((baseCoords[0] + Math.sin(angle) * distance).toFixed(5)),
+    lng: Number((baseCoords[1] + Math.cos(angle) * distance).toFixed(5)),
+    kota: targetKota,
+    provinsi: targetProv
+  };
+}
+
 

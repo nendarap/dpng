@@ -569,6 +569,7 @@ export default function App() {
                   pesertaList={pesertaList}
                   kategoriList={kategoriList}
                   programList={programList}
+                  initialGroupBy="instansi"
                   onNavigateToPeserta={(filters) => {
                     setActiveTab('peserta');
                   }}

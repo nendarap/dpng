@@ -4,11 +4,13 @@ import {
   ChevronLeft, ChevronRight, SlidersHorizontal, 
   FileText, CheckSquare, Square, AlertTriangle,
   Upload, CheckCircle2, X, ChevronDown, Check,
-  RefreshCw, FileSpreadsheet, Layers, Filter
+  RefreshCw, FileSpreadsheet, Layers, Filter,
+  MapPin, Map as MapIcon, Building2, Users
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Peserta, UserRole, Kategori, Program } from '../types';
 import { PesertaImportModal } from './PesertaImportModal';
+import { MapDashboardView } from './MapDashboardView';
 import { deleteMultiplePeserta, updateMultiplePesertaStatus } from '../services/storageService';
 
 interface PesertaListViewProps {
@@ -44,6 +46,15 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [kategoriFilter, setKategoriFilter] = useState('ALL');
   const [tahunFilter, setTahunFilter] = useState('ALL');
+
+  // View Mode: 'table' or 'map' (Peta Sebaran Berdasarkan Instansi)
+  const [viewMode, setViewMode] = useState<'table' | 'map'>('table');
+  const [focusedInstansiOnMap, setFocusedInstansiOnMap] = useState<string | undefined>(undefined);
+
+  const uniqueInstansiCount = useMemo(() => {
+    const set = new Set(pesertaList.map(p => (p.instansi || '').trim()).filter(Boolean));
+    return set.size;
+  }, [pesertaList]);
   
   // Import Modal State
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -386,8 +397,95 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
 
   return (
     <div className="space-y-4 pb-20 relative">
-      {/* Header & Actions */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+      {/* View Switcher: Tabel Data Peserta vs Peta Sebaran Instansi */}
+      <div className="bg-white rounded-2xl p-2.5 border border-slate-200 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setViewMode('table')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              viewMode === 'table'
+                ? 'bg-[#002B66] text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            <Users className="w-4 h-4 text-[#FDB913]" />
+            <span>Tabel Data Peserta</span>
+            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+              viewMode === 'table' ? 'bg-[#FDB913] text-[#002B66]' : 'bg-slate-200 text-slate-700'
+            }`}>
+              {filteredData.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setFocusedInstansiOnMap(undefined);
+              setViewMode('map');
+            }}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              viewMode === 'map'
+                ? 'bg-[#002B66] text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            <MapIcon className="w-4 h-4 text-[#FDB913]" />
+            <span>Peta Sebaran (Map) Berdasarkan Instansi</span>
+            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+              viewMode === 'map' ? 'bg-[#FDB913] text-[#002B66]' : 'bg-slate-200 text-slate-700'
+            }`}>
+              {uniqueInstansiCount} Mitra
+            </span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 self-end sm:self-auto">
+          {viewMode === 'table' ? (
+            <button
+              type="button"
+              onClick={() => {
+                setFocusedInstansiOnMap(undefined);
+                setViewMode('map');
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#002B66] border border-blue-200 rounded-xl text-xs font-bold cursor-pointer transition-colors"
+            >
+              <MapPin className="w-3.5 h-3.5 text-rose-500" />
+              <span>Buka Peta Instansi</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold cursor-pointer transition-colors"
+            >
+              <Users className="w-3.5 h-3.5 text-slate-500" />
+              <span>Kembali ke Tabel</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {viewMode === 'map' ? (
+        <MapDashboardView
+          pesertaList={pesertaList}
+          kategoriList={kategoriList}
+          programList={programList}
+          initialGroupBy="instansi"
+          initialInstansi={focusedInstansiOnMap}
+          isEmbedded={true}
+          onBackToTable={() => setViewMode('table')}
+          onNavigateToPeserta={(filters) => {
+            setViewMode('table');
+            if (filters?.instansi) setSearchTerm(filters.instansi);
+            if (filters?.statusPeserta) setStatusFilter(filters.statusPeserta);
+            if (filters?.kategoriProgram) setKategoriFilter(filters.kategoriProgram);
+          }}
+        />
+      ) : (
+        <>
+          {/* Header & Actions */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
         <div>
           <h1 className="text-xl font-black text-[#002B66]">Data Peserta Pendidikan Non Gelar</h1>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -401,6 +499,20 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+          {/* Quick Switch to Map */}
+          <button
+            type="button"
+            onClick={() => {
+              setFocusedInstansiOnMap(undefined);
+              setViewMode('map');
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-[#002B66] rounded-lg text-xs font-semibold transition-colors border border-blue-200 cursor-pointer shadow-2xs"
+            title="Lihat Peta Sebaran Peserta Berdasarkan Instansi"
+          >
+            <MapPin className="w-3.5 h-3.5 text-rose-500" />
+            <span>Peta Instansi</span>
+          </button>
+
           {/* Quick Select All Data Button */}
           <div className="relative">
             <button
@@ -833,8 +945,26 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
                       )}
                       {showColumns.instansi && (
                         <td className="p-3 text-slate-700">
-                          <div className="font-medium">{p.instansi || '-'}</div>
-                          <div className="text-[11px] text-slate-400">{p.jabatan || ''}</div>
+                          <div className="flex items-center justify-between gap-1 group/inst">
+                            <div className="min-w-0">
+                              <div className="font-semibold text-slate-800 truncate">{p.instansi || '-'}</div>
+                              <div className="text-[11px] text-slate-400 truncate">{p.jabatan || ''}</div>
+                            </div>
+                            {p.instansi && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setFocusedInstansiOnMap(p.instansi);
+                                  setViewMode('map');
+                                }}
+                                className="opacity-0 group-hover/inst:opacity-100 p-1 text-[#002B66] hover:bg-blue-50 rounded transition-all shrink-0 cursor-pointer"
+                                title={`Lihat sebaran instansi ${p.instansi} di Peta`}
+                              >
+                                <MapPin className="w-3.5 h-3.5 text-rose-500" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       )}
                       {showColumns.kategori && (
@@ -969,6 +1099,8 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
           </div>
         </div>
       </div>
+      </>
+      )}
 
       {/* FLOATING STICKY BULK ACTION BAR (Tampil saat 1 atau lebih data dipilih) */}
       {selectedIds.length > 0 && (
