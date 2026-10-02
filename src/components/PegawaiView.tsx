@@ -4,12 +4,14 @@ import {
   Building2, GraduationCap, Edit2, Trash2, CheckCircle2, 
   X, Download, Upload, FileSpreadsheet, CheckSquare, 
   ChevronLeft, ChevronRight, SlidersHorizontal, Eye, 
-  Printer, User, Award, MapPin, Calendar, ChevronDown
+  Printer, User, Award, MapPin, Calendar, ChevronDown,
+  BarChart3
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Pegawai, UserRole } from '../types';
 import { PegawaiImportModal } from './PegawaiImportModal';
 import { PegawaiPdfPreviewModal } from './PegawaiPdfPreviewModal';
+import { PegawaiDashboardView } from './PegawaiDashboardView';
 import { bulkImportPegawai } from '../services/storageService';
 
 interface PegawaiViewProps {
@@ -23,6 +25,7 @@ interface PegawaiViewProps {
     mode: 'skip' | 'update' | 'force'
   ) => { success: boolean; message: string; count: number };
   onRefreshData?: () => void;
+  initialViewMode?: 'dashboard' | 'table';
 }
 
 const DEFAULT_FORM_PEGAWAI: Partial<Pegawai> = {
@@ -78,8 +81,17 @@ export const PegawaiView: React.FC<PegawaiViewProps> = ({
   onDeletePegawai,
   onDeleteMultiplePegawai,
   onBulkImportPegawai,
-  onRefreshData
+  onRefreshData,
+  initialViewMode = 'dashboard'
 }) => {
+  const [viewMode, setViewMode] = useState<'dashboard' | 'table'>(initialViewMode);
+
+  useEffect(() => {
+    if (initialViewMode) {
+      setViewMode(initialViewMode);
+    }
+  }, [initialViewMode]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [kepegawaianFilter, setKepegawaianFilter] = useState('ALL');
@@ -288,8 +300,87 @@ export const PegawaiView: React.FC<PegawaiViewProps> = ({
 
   return (
     <div className="space-y-4 pb-20 relative">
-      {/* Header & KPI */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+      {/* View Switcher: Dashboard & Statistik vs Tabel Master Pegawai */}
+      <div className="bg-white rounded-2xl p-2.5 border border-slate-200 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setViewMode('dashboard')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              viewMode === 'dashboard'
+                ? 'bg-[#002B66] text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4 text-[#FDB913]" />
+            <span>Dashboard & Statistik</span>
+            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+              viewMode === 'dashboard' ? 'bg-[#FDB913] text-[#002B66]' : 'bg-slate-200 text-slate-700'
+            }`}>
+              Analitik
+            </span>
+          </button>
+
+          <button
+            onClick={() => setViewMode('table')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              viewMode === 'table'
+                ? 'bg-[#002B66] text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            <Briefcase className="w-4 h-4 text-[#FDB913]" />
+            <span>Tabel Master Pegawai</span>
+            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+              viewMode === 'table' ? 'bg-[#FDB913] text-[#002B66]' : 'bg-slate-200 text-slate-700'
+            }`}>
+              {pegawaiList.length}
+            </span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 self-end sm:self-auto">
+          {viewMode === 'table' ? (
+            <button
+              onClick={() => setViewMode('dashboard')}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#002B66] border border-blue-200 rounded-xl text-xs font-bold cursor-pointer transition-colors"
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-[#FDB913]" />
+              <span>Buka Dashboard</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setViewMode('table')}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold cursor-pointer transition-colors"
+            >
+              <Briefcase className="w-3.5 h-3.5 text-slate-500" />
+              <span>Buka Tabel ({filteredData.length})</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {viewMode === 'dashboard' ? (
+        <PegawaiDashboardView
+          pegawaiList={pegawaiList}
+          userRole={userRole}
+          onNavigateToTable={(filters) => {
+            if (filters?.statusKepegawaian) setKepegawaianFilter(filters.statusKepegawaian);
+            if (filters?.statusAktif) setStatusFilter(filters.statusAktif);
+            if (filters?.unitKerja) setUnitFilter(filters.unitKerja);
+            if (filters?.searchQuery) setSearchTerm(filters.searchQuery);
+            setCurrentPage(1);
+            setViewMode('table');
+          }}
+          onAddNewPegawai={() => {
+            setEditingPegawai({ ...DEFAULT_FORM_PEGAWAI });
+            setActiveFormTab('kepegawaian');
+            setIsFormModalOpen(true);
+          }}
+        />
+      ) : (
+        <>
+          {/* Header & KPI */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-[#002B66] text-[#FDB913] flex items-center justify-center font-bold shadow-xs">
             <Briefcase className="w-5 h-5" />
@@ -589,6 +680,8 @@ export const PegawaiView: React.FC<PegawaiViewProps> = ({
           </div>
         </div>
       </div>
+      </>
+      )}
 
       {/* Floating Bulk Action Bar */}
       {selectedIds.length > 0 && (

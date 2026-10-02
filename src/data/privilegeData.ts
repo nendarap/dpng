@@ -32,6 +32,16 @@ export const APP_MENU_DEFINITIONS: AppMenuItemDef[] = [
     iconName: 'Map',
     supportedActions: { canCreate: false, canEdit: false, canDelete: false, canExport: true }
   },
+  {
+    id: 'pegawai_dashboard',
+    label: 'Dashboard Pegawai',
+    kategoriModul: 'Dashboard & Peta',
+    deskripsi: 'Dashboard & statistik eksekutif data pegawai Unpad, profil SDM, kepangkatan, pendidikan, dan proyeksi pensiun.',
+    urutan: 4,
+    aktif: true,
+    iconName: 'Users',
+    supportedActions: { canCreate: false, canEdit: false, canDelete: false, canExport: true }
+  },
 
   // 2. Master Data Program
   {

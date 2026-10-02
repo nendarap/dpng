@@ -652,6 +652,19 @@ export default function App() {
                 />
               )}
 
+              {activeTab === 'pegawai_dashboard' && (
+                <PegawaiView
+                  pegawaiList={pegawaiList}
+                  userRole={currentUser.role}
+                  onSavePegawai={handleSavePegawai}
+                  onDeletePegawai={handleDeletePegawai}
+                  onDeleteMultiplePegawai={handleDeleteMultiplePegawai}
+                  onBulkImportPegawai={handleBulkImportPegawai}
+                  onRefreshData={refreshAllData}
+                  initialViewMode="dashboard"
+                />
+              )}
+
               {activeTab === 'pegawai' && (
                 <PegawaiView
                   pegawaiList={pegawaiList}
@@ -661,6 +674,7 @@ export default function App() {
                   onDeleteMultiplePegawai={handleDeleteMultiplePegawai}
                   onBulkImportPegawai={handleBulkImportPegawai}
                   onRefreshData={refreshAllData}
+                  initialViewMode="table"
                 />
               )}
 

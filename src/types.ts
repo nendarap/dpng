@@ -234,7 +234,8 @@ export interface UserItem {
 export type AppMenuId = 
   | 'dashboard' 
   | 'eduventure_dashboard'
-  | 'map_dashboard' 
+  | 'map_dashboard'
+  | 'pegawai_dashboard'
   | 'peserta' 
   | 'tambah' 
   | 'kategori' 

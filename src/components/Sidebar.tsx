@@ -15,6 +15,7 @@ export type ActiveTab =
   | 'dashboard' 
   | 'eduventure_dashboard'
   | 'map_dashboard'
+  | 'pegawai_dashboard'
   | 'peserta' 
   | 'tambah' 
   | 'kategori' 
@@ -50,6 +51,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   dashboard: LayoutDashboard,
   eduventure_dashboard: BarChart3,
   map_dashboard: Map,
+  pegawai_dashboard: BarChart3,
   peserta: Users,
   tambah: UserPlus,
   kategori: Layers,
@@ -117,10 +119,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
     if (userRole === 'ADMIN') return true;
     if (userRole === 'OPERATOR') {
-      return ['dashboard', 'eduventure_dashboard', 'map_dashboard', 'kategori', 'program', 'pic', 'pegawai', 'peserta', 'tambah', 'eduventure', 'search', 'statistik', 'export', 'log', 'gas_code', 'backup_restore'].includes(itemId);
+      return ['dashboard', 'eduventure_dashboard', 'map_dashboard', 'pegawai_dashboard', 'kategori', 'program', 'pic', 'pegawai', 'peserta', 'tambah', 'eduventure', 'search', 'statistik', 'export', 'log', 'gas_code', 'backup_restore'].includes(itemId);
     }
     if (userRole === 'VIEWER') {
-      return ['dashboard', 'eduventure_dashboard', 'map_dashboard', 'kategori', 'program', 'pic', 'pegawai', 'peserta', 'eduventure', 'search', 'statistik', 'export', 'gas_code'].includes(itemId);
+      return ['dashboard', 'eduventure_dashboard', 'map_dashboard', 'pegawai_dashboard', 'kategori', 'program', 'pic', 'pegawai', 'peserta', 'eduventure', 'search', 'statistik', 'export', 'gas_code'].includes(itemId);
     }
     return false;
   };
