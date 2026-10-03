@@ -23,6 +23,8 @@ import { BackupRestoreView } from './components/BackupRestoreView';
 import { GoogleSheetConnectionModal } from './components/GoogleSheetConnectionModal';
 import { PegawaiView } from './components/PegawaiView';
 import { SessionManager } from './components/SessionManager';
+import { PublicRegistrationView } from './components/PublicRegistrationView';
+import { ShareRegistrationLinkModal } from './components/ShareRegistrationLinkModal';
 
 import { 
   Peserta, Kategori, Program, PicProgram, UserItem, LogAktivitas, SettingApp, UserRole,
@@ -78,6 +80,37 @@ export default function App() {
   // Modal / Selection States
   const [detailPeserta, setDetailPeserta] = useState<Peserta | null>(null);
   const [editPeserta, setEditPeserta] = useState<Peserta | null>(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+
+  // Public Registration Mode State (accessible via ?mode=daftar or ?register=true or #daftar or Login page button)
+  const [isPublicRegistrationMode, setIsPublicRegistrationMode] = useState<boolean>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('mode') === 'daftar' || params.get('register') === 'true' || window.location.hash === '#daftar';
+    } catch {
+      return false;
+    }
+  });
+
+  // Sync URL changes with public registration mode
+  useEffect(() => {
+    const handleUrlChange = () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('mode') === 'daftar' || params.get('register') === 'true' || window.location.hash === '#daftar') {
+          setIsPublicRegistrationMode(true);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    window.addEventListener('popstate', handleUrlChange);
+    window.addEventListener('hashchange', handleUrlChange);
+    return () => {
+      window.removeEventListener('popstate', handleUrlChange);
+      window.removeEventListener('hashchange', handleUrlChange);
+    };
+  }, []);
 
   // Toast Notification
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -433,6 +466,56 @@ export default function App() {
     setActiveTab('peserta');
   };
 
+  // Render Public Registration Portal if requested by public URL or button
+  if (isPublicRegistrationMode) {
+    return (
+      <>
+        <PublicRegistrationView
+          kategoriList={kategoriList}
+          programList={programList}
+          allPesertaList={pesertaList}
+          onBackToLogin={() => {
+            setIsPublicRegistrationMode(false);
+            try {
+              const url = new URL(window.location.href);
+              url.searchParams.delete('mode');
+              url.searchParams.delete('register');
+              url.searchParams.delete('program');
+              window.history.pushState({}, '', url.pathname);
+            } catch {
+              // ignore
+            }
+          }}
+          onRefreshData={refreshAllData}
+        />
+
+        {/* Floating Toast Notification */}
+        {toast && (
+          <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-5">
+            <div className={`flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-xl text-xs font-semibold border ${
+              toast.type === 'success' 
+                ? 'bg-[#002B66] text-white border-[#FDB913]' 
+                : 'bg-rose-600 text-white border-rose-400'
+            }`}>
+              {toast.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-[#FDB913] shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-white shrink-0" />
+              )}
+              <span>{toast.message}</span>
+              <button
+                onClick={() => setToast(null)}
+                className="ml-2 text-white/70 hover:text-white p-0.5 rounded cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
+
   // Render Login View if not logged in
   if (!isLoggedIn) {
     return (
@@ -440,6 +523,7 @@ export default function App() {
         <LoginView 
           onLoginSuccess={handleLoginSuccess} 
           loginSettings={settings.loginSettings} 
+          onOpenPublicRegistration={() => setIsPublicRegistrationMode(true)}
         />
         
         {/* Floating Toast Notification */}
@@ -486,6 +570,7 @@ export default function App() {
         onUpdateUser={handleUpdateUser}
         onThemeChange={handleThemeChange}
         onShowToast={showToast}
+        onOpenShareLinkModal={() => setIsShareModalOpen(true)}
       />
 
       {/* Background Session Manager (Countdown & Warning Modal) */}
@@ -596,6 +681,7 @@ export default function App() {
                   }}
                   onExport={() => setActiveTab('export')}
                   onRefreshData={refreshAllData}
+                  onOpenShareLinkModal={() => setIsShareModalOpen(true)}
                 />
               )}
 
@@ -837,6 +923,14 @@ export default function App() {
           showToast(msg, 'success');
           refreshAllData();
         }}
+      />
+
+      {/* Share Public Registration Link Modal */}
+      <ShareRegistrationLinkModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        programList={programList}
+        kategoriList={kategoriList}
       />
 
       {/* Floating Toast Notification */}

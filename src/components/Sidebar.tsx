@@ -1,10 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, Users, UserPlus, Layers, GraduationCap, 
   Search, FileSpreadsheet, Download, BarChart3, ShieldCheck, 
-  History, Settings, Code, X, LogOut, Map, UserCheck, Compass,
-  SlidersHorizontal, Shield, ChevronRight, DatabaseBackup, Database,
-  Briefcase
+  History, Settings, Code, X, LogOut, Map as MapIcon, UserCheck, Compass,
+  SlidersHorizontal, Shield, ChevronRight, ChevronDown, DatabaseBackup, Database,
+  Briefcase, Folder
 } from 'lucide-react';
 import { UserRole, GroupAkun, UserItem, AppMenuId, AppMenuItemDef, AppThemeId } from '../types';
 import { hasMenuAccess } from '../data/privilegeData';
@@ -50,7 +50,7 @@ interface SidebarProps {
 const ICON_MAP: Record<string, React.ElementType> = {
   dashboard: LayoutDashboard,
   eduventure_dashboard: BarChart3,
-  map_dashboard: Map,
+  map_dashboard: MapIcon,
   pegawai_dashboard: BarChart3,
   peserta: Users,
   tambah: UserPlus,
@@ -139,8 +139,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
     });
   }, [allMenus, currentUser, userRole, groups]);
 
-  // Kelompokkan menu berdasarkan Kategori Modul
-  const groupedMenus = useMemo(() => {
+  // State: Parent menu yang sedang dibuka (accordion)
+  const [expandedParents, setExpandedParents] = useState<Record<string, boolean>>({});
+
+  // Auto-expand parent menu jika child aktif
+  useEffect(() => {
+    const currentItem = allMenus.find(m => m.id === activeTab);
+    if (currentItem?.parentId) {
+      setExpandedParents(prev => ({
+        ...prev,
+        [currentItem.parentId!]: true
+      }));
+    }
+  }, [activeTab, allMenus]);
+
+  const toggleParentExpand = (parentId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setExpandedParents(prev => ({
+      ...prev,
+      [parentId]: !prev[parentId]
+    }));
+  };
+
+  // Kelompokkan menu berdasarkan Kategori Modul dengan Struktur Hirarki (Parent -> Submenu)
+  const hierarchicalGroupedMenus = useMemo(() => {
     const categoryOrder = [
       'Dashboard & Peta',
       'Operasional & Peserta',
@@ -149,13 +171,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
       'Administrasi Sistem'
     ];
 
-    const groupsMap: Record<string, AppMenuItemDef[]> = {};
+    const groupsMap: Record<string, Array<{ parent: AppMenuItemDef; children: AppMenuItemDef[] }>> = {};
     categoryOrder.forEach(cat => { groupsMap[cat] = []; });
 
+    const accessibleMap = new Map(accessibleMenus.map(m => [m.id, m]));
+    
+    // Indeks anak per parentId
+    const childrenByParent = new Map<string, AppMenuItemDef[]>();
     accessibleMenus.forEach(item => {
-      const cat = item.kategoriModul || 'Operasional & Peserta';
-      if (!groupsMap[cat]) groupsMap[cat] = [];
-      groupsMap[cat].push(item);
+      if (item.parentId && accessibleMap.has(item.parentId)) {
+        if (!childrenByParent.has(item.parentId)) {
+          childrenByParent.set(item.parentId, []);
+        }
+        childrenByParent.get(item.parentId)!.push(item);
+      }
+    });
+
+    // Masukkan top-level items (tidak punya parentId atau parentnya tidak accessible)
+    accessibleMenus.forEach(item => {
+      const isChild = item.parentId && accessibleMap.has(item.parentId);
+      if (!isChild) {
+        const cat = item.kategoriModul || 'Operasional & Peserta';
+        if (!groupsMap[cat]) groupsMap[cat] = [];
+        const children = childrenByParent.get(item.id) || [];
+        children.sort((a: AppMenuItemDef, b: AppMenuItemDef) => (a.urutan || 99) - (b.urutan || 99));
+        groupsMap[cat].push({ parent: item, children });
+      }
     });
 
     return Object.entries(groupsMap).filter(([_, items]) => items.length > 0);
@@ -233,43 +274,103 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </span>
         </div>
 
-        {/* Menu Navigation Items Grouped by Role & Category */}
+        {/* Menu Navigation Items Grouped by Role & Category (Hierarchical) */}
         <div className="flex-1 overflow-y-auto py-2 px-2.5 space-y-4 custom-scrollbar">
-          {groupedMenus.map(([category, items]) => (
+          {hierarchicalGroupedMenus.map(([category, menuNodes]) => (
             <div key={category} className="space-y-1">
               <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400/80 flex items-center justify-between">
                 <span>{category}</span>
                 <span className="text-[9px] font-mono text-slate-500 font-normal">
-                  {items.length}
+                  {menuNodes.reduce((acc, n) => acc + 1 + n.children.length, 0)}
                 </span>
               </div>
 
-              {items.map((item) => {
-                const Icon = ICON_MAP[item.id] || LayoutDashboard;
-                const isActive = activeTab === item.id;
+              {menuNodes.map(({ parent, children }) => {
+                const ParentIcon = ICON_MAP[parent.id] || LayoutDashboard;
+                const isParentActive = activeTab === parent.id;
+                const hasChildren = children.length > 0;
+                const isChildActive = children.some(c => c.id === activeTab);
+                const isExpanded = expandedParents[parent.id] ?? (isParentActive || isChildActive);
 
                 return (
-                  <button
-                    key={item.id}
-                    id={`sidebar-link-${item.id}`}
-                    onClick={() => {
-                      onSelectTab(item.id as ActiveTab);
-                      if (window.innerWidth < 1024) onCloseMobile();
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer ${
-                      isActive
-                        ? 'bg-[#FDB913] text-[#002B66] shadow-xs font-bold'
-                        : 'text-slate-200 hover:bg-white/10 hover:text-white'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#002B66]' : 'text-slate-300'}`} />
-                      <span className="truncate">{item.label}</span>
+                  <div key={parent.id} className="space-y-0.5">
+                    {/* Top Level Item */}
+                    <div className="flex items-center">
+                      <button
+                        id={`sidebar-link-${parent.id}`}
+                        onClick={() => {
+                          if (hasChildren && !isExpanded) {
+                            toggleParentExpand(parent.id);
+                          }
+                          onSelectTab(parent.id as ActiveTab);
+                          if (!hasChildren && window.innerWidth < 1024) onCloseMobile();
+                        }}
+                        className={`flex-1 flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                          isParentActive
+                            ? 'bg-[#FDB913] text-[#002B66] shadow-xs font-bold'
+                            : isChildActive
+                              ? 'bg-white/15 text-white font-bold'
+                              : 'text-slate-200 hover:bg-white/10 hover:text-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <ParentIcon className={`w-4 h-4 shrink-0 ${isParentActive ? 'text-[#002B66]' : 'text-slate-300'}`} />
+                          <span className="truncate">{parent.label}</span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                          {hasChildren && (
+                            <span 
+                              onClick={(e) => toggleParentExpand(parent.id, e)}
+                              className={`p-1 rounded hover:bg-white/20 transition-transform cursor-pointer ${
+                                isExpanded ? 'rotate-180' : 'rotate-0'
+                              }`}
+                              title={isExpanded ? 'Tutup sub-menu' : 'Buka sub-menu'}
+                            >
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            </span>
+                          )}
+                          {isParentActive && !hasChildren && (
+                            <ChevronRight className="w-3.5 h-3.5 text-[#002B66]" />
+                          )}
+                        </div>
+                      </button>
                     </div>
-                    {isActive && (
-                      <ChevronRight className="w-3.5 h-3.5 text-[#002B66] shrink-0" />
+
+                    {/* Submenu Accordion (Children) */}
+                    {hasChildren && isExpanded && (
+                      <div className="ml-5 pl-2.5 border-l-2 border-white/20 py-0.5 space-y-0.5 animate-in fade-in duration-150">
+                        {children.map(child => {
+                          const ChildIcon = ICON_MAP[child.id] || LayoutDashboard;
+                          const isCurrentActive = activeTab === child.id;
+
+                          return (
+                            <button
+                              key={child.id}
+                              id={`sidebar-link-${child.id}`}
+                              onClick={() => {
+                                onSelectTab(child.id as ActiveTab);
+                                if (window.innerWidth < 1024) onCloseMobile();
+                              }}
+                              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                                isCurrentActive
+                                  ? 'bg-[#FDB913] text-[#002B66] font-bold shadow-2xs'
+                                  : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <ChildIcon className={`w-3.5 h-3.5 shrink-0 ${isCurrentActive ? 'text-[#002B66]' : 'text-slate-400'}`} />
+                                <span className="truncate">{child.label}</span>
+                              </div>
+                              {isCurrentActive && (
+                                <ChevronRight className="w-3 h-3 text-[#002B66] shrink-0" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
                     )}
-                  </button>
+                  </div>
                 );
               })}
             </div>

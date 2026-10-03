@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Menu, Shield, Database, RefreshCw, FileCode, CheckCircle2, 
-  UserCheck, LogOut, User, Camera, Palette, ChevronDown, Sparkles, Key
+  UserCheck, LogOut, User, Camera, Palette, ChevronDown, Sparkles, Key, Share2
 } from 'lucide-react';
 import { UserItem, UserRole, GroupAkun, AppThemeId } from '../types';
 import { UnpadLogo } from './UnpadLogo';
@@ -22,6 +22,7 @@ interface NavbarProps {
   onUpdateUser?: (updatedUser: UserItem) => void;
   onThemeChange?: (theme: AppThemeId) => void;
   onShowToast?: (msg: string, type?: 'success' | 'error') => void;
+  onOpenShareLinkModal?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -37,6 +38,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onUpdateUser = () => {},
   onThemeChange = () => {},
   onShowToast = () => {},
+  onOpenShareLinkModal,
 }) => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [profileModalTab, setProfileModalTab] = useState<'info' | 'password' | 'photo' | 'theme'>('info');
@@ -87,6 +89,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <Database className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
                 <span>Google Sheets Database</span>
                 <CheckCircle2 className="w-3 h-3 text-emerald-500 ml-0.5" />
+              </button>
+            )}
+
+            {/* Quick Share Public Registration Link Button */}
+            {onOpenShareLinkModal && (
+              <button
+                type="button"
+                id="btn-navbar-share-link"
+                onClick={onOpenShareLinkModal}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#002B66] border border-blue-200 rounded-lg text-xs font-semibold shadow-2xs transition-all cursor-pointer"
+                title="Bagikan Tautan Pendaftaran Publik Peserta Non Gelar"
+              >
+                <Share2 className="w-3.5 h-3.5 text-[#FDB913]" />
+                <span className="hidden xl:inline">Link Pendaftaran Publik</span>
               </button>
             )}
 

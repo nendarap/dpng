@@ -133,6 +133,7 @@ export interface Pegawai {
 
 export interface Kategori {
   idKategori: string;
+  id?: string;
   namaKategori: string;
   deskripsi: string;
   statusAktif: boolean | 'Ya' | 'Tidak';
@@ -143,12 +144,18 @@ export interface Kategori {
 
 export interface Program {
   idProgram: string;
+  id?: string;
   idKategori: string;
   namaProgram: string;
   deskripsi: string;
   statusAktif: boolean | 'Ya' | 'Tidak';
   idPic?: string;
   namaPic?: string;
+  durasi?: string;
+  biaya?: number;
+  tanggalMulai?: string;
+  tanggalSelesai?: string;
+  kategori?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -275,6 +282,8 @@ export interface AppMenuItemDef {
   iconName?: string;
   badgeText?: string;
   isCustom?: boolean;
+  parentId?: string | null;
+  isParentMenu?: boolean;
   supportedActions: {
     canCreate: boolean;
     canEdit: boolean;

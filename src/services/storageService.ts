@@ -2214,6 +2214,149 @@ export function resetMenusToDefault(): void {
   writeLog('Reset Menu', 'MENU', 'DEFAULT', 'Mengembalikan seluruh konfigurasi menu ke standar Unpad');
 }
 
+export function updateMenuParent(menuId: string, parentId: string | null): { success: boolean; message: string } {
+  const list = getAppMenus();
+  const idx = list.findIndex(m => m.id === menuId);
+  if (idx < 0) {
+    return { success: false, message: 'Menu tidak ditemukan.' };
+  }
+
+  // Prevent circular hierarchy: menu cannot be its own parent
+  if (parentId === menuId) {
+    return { success: false, message: 'Menu tidak dapat menjadi induk bagi dirinya sendiri.' };
+  }
+
+  const oldParent = list[idx].parentId;
+  list[idx].parentId = parentId;
+
+  // If a menu becomes a parent of another menu, mark parent as having children
+  if (parentId) {
+    const parentIdx = list.findIndex(m => m.id === parentId);
+    if (parentIdx >= 0) {
+      list[parentIdx].isParentMenu = true;
+    }
+  }
+
+  // Check if old parent still has other children
+  if (oldParent) {
+    const remainingChildren = list.some(m => m.id !== menuId && m.parentId === oldParent);
+    const oldParentIdx = list.findIndex(m => m.id === oldParent);
+    if (oldParentIdx >= 0) {
+      list[oldParentIdx].isParentMenu = remainingChildren;
+    }
+  }
+
+  localStorage.setItem(STORAGE_KEYS.MENUS, JSON.stringify(list));
+  const parentName = parentId ? list.find(m => m.id === parentId)?.label || parentId : 'Menu Utama (Root)';
+  writeLog('Hirarki Menu', 'MENU', menuId, `Mengubah posisi hirarki menu "${list[idx].label}" menjadi di bawah "${parentName}"`);
+  return { 
+    success: true, 
+    message: parentId 
+      ? `Menu "${list[idx].label}" berhasil dijadikan sub-menu di bawah "${parentName}".`
+      : `Menu "${list[idx].label}" berhasil dipindahkan ke Menu Utama (Level 1).`
+  };
+}
+
+export function updateMenuHierarchy(
+  updates: Array<{ id: string; parentId?: string | null; urutan?: number; isParentMenu?: boolean }>
+): { success: boolean; message: string } {
+  const list = getAppMenus();
+  const updateMap = new Map(updates.map(u => [u.id, u]));
+
+  list.forEach(m => {
+    const update = updateMap.get(m.id);
+    if (update) {
+      if (update.parentId !== undefined) m.parentId = update.parentId;
+      if (update.urutan !== undefined) m.urutan = update.urutan;
+      if (update.isParentMenu !== undefined) m.isParentMenu = update.isParentMenu;
+    }
+  });
+
+  // Re-verify isParentMenu flag
+  const parentIdsWithChildren = new Set(list.map(m => m.parentId).filter(Boolean));
+  list.forEach(m => {
+    m.isParentMenu = parentIdsWithChildren.has(m.id);
+  });
+
+  // Sort by order
+  list.sort((a, b) => (a.urutan || 99) - (b.urutan || 99));
+
+  localStorage.setItem(STORAGE_KEYS.MENUS, JSON.stringify(list));
+  writeLog('Hirarki Menu', 'MENU', 'BATCH_HIERARCHY', 'Memperbarui seluruh struktur hirarki dan urutan menu');
+  return { success: true, message: 'Struktur hirarki menu berhasil disimpan secara dinamis!' };
+}
+
+export function applyDefaultHierarchy(): { success: boolean; message: string } {
+  const list = getAppMenus();
+
+  // Mapping standar Unpad untuk menu hirarki terstruktur:
+  // Dashboard Utama -> anak: eduventure_dashboard, map_dashboard, pegawai_dashboard
+  // Kategori Program -> anak: program, pic, pegawai
+  // Data Peserta -> anak: tambah, eduventure, search
+  // Statistik -> anak: export, import
+  // User Management -> anak: menu_manage, log, setting, backup_restore, gas_code
+  const hierarchyRules: Record<string, { parentId: string | null; urutan: number }> = {
+    // Top-Level Parents
+    'dashboard': { parentId: null, urutan: 1 },
+    'eduventure_dashboard': { parentId: 'dashboard', urutan: 2 },
+    'map_dashboard': { parentId: 'dashboard', urutan: 3 },
+    'pegawai_dashboard': { parentId: 'dashboard', urutan: 4 },
+
+    'kategori': { parentId: null, urutan: 5 },
+    'program': { parentId: 'kategori', urutan: 6 },
+    'pic': { parentId: 'kategori', urutan: 7 },
+    'pegawai': { parentId: 'kategori', urutan: 8 },
+
+    'peserta': { parentId: null, urutan: 9 },
+    'tambah': { parentId: 'peserta', urutan: 10 },
+    'eduventure': { parentId: 'peserta', urutan: 11 },
+    'search': { parentId: 'peserta', urutan: 12 },
+
+    'statistik': { parentId: null, urutan: 13 },
+    'export': { parentId: 'statistik', urutan: 14 },
+    'import': { parentId: 'statistik', urutan: 15 },
+
+    'user': { parentId: null, urutan: 16 },
+    'menu_manage': { parentId: 'user', urutan: 17 },
+    'log': { parentId: 'user', urutan: 18 },
+    'setting': { parentId: 'user', urutan: 19 },
+    'backup_restore': { parentId: 'user', urutan: 20 },
+    'gas_code': { parentId: 'user', urutan: 21 },
+  };
+
+  list.forEach(m => {
+    const rule = hierarchyRules[m.id];
+    if (rule) {
+      m.parentId = rule.parentId;
+      m.urutan = rule.urutan;
+    } else {
+      m.parentId = null;
+    }
+  });
+
+  const parentIdsWithChildren = new Set(list.map(m => m.parentId).filter(Boolean));
+  list.forEach(m => {
+    m.isParentMenu = parentIdsWithChildren.has(m.id);
+  });
+
+  list.sort((a, b) => (a.urutan || 99) - (b.urutan || 99));
+  localStorage.setItem(STORAGE_KEYS.MENUS, JSON.stringify(list));
+  writeLog('Hirarki Menu', 'MENU', 'DEFAULT_HIERARCHY', 'Menerapkan struktur hirarki standar Unpad');
+  return { success: true, message: 'Struktur hirarki menu standar Unpad berhasil diterapkan!' };
+}
+
+export function flattenHierarchy(): { success: boolean; message: string } {
+  const list = getAppMenus();
+  list.forEach(m => {
+    m.parentId = null;
+    m.isParentMenu = false;
+  });
+  list.sort((a, b) => (a.urutan || 99) - (b.urutan || 99));
+  localStorage.setItem(STORAGE_KEYS.MENUS, JSON.stringify(list));
+  writeLog('Hirarki Menu', 'MENU', 'FLATTEN', 'Mengembalikan semua menu menjadi menu utama tingkat 1 (flat)');
+  return { success: true, message: 'Semua menu telah dikembalikan menjadi menu utama tingkat 1 (flat).' };
+}
+
 // Hubungkan Menu ke Group Akun
 export function updateMenuGroupsAccess(
   menuId: string, 

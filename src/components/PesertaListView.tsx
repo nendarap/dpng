@@ -5,7 +5,7 @@ import {
   FileText, CheckSquare, Square, AlertTriangle,
   Upload, CheckCircle2, X, ChevronDown, Check,
   RefreshCw, FileSpreadsheet, Layers, Filter,
-  MapPin, Map as MapIcon, Building2, Users
+  MapPin, Map as MapIcon, Building2, Users, Share2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Peserta, UserRole, Kategori, Program } from '../types';
@@ -26,6 +26,7 @@ interface PesertaListViewProps {
   onRefreshData?: () => void;
   kategoriList?: Kategori[];
   programList?: Program[];
+  onOpenShareLinkModal?: () => void;
 }
 
 export const PesertaListView: React.FC<PesertaListViewProps> = ({
@@ -41,6 +42,7 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
   onRefreshData,
   kategoriList = [],
   programList = [],
+  onOpenShareLinkModal,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -512,6 +514,20 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
             <MapPin className="w-3.5 h-3.5 text-rose-500" />
             <span>Peta Instansi</span>
           </button>
+
+          {/* Quick Share Link Pendaftaran Publik */}
+          {onOpenShareLinkModal && (
+            <button
+              type="button"
+              id="btn-peserta-share-link"
+              onClick={onOpenShareLinkModal}
+              className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 hover:bg-amber-100 text-[#002B66] rounded-lg text-xs font-bold transition-colors border border-amber-300 cursor-pointer shadow-2xs"
+              title="Bagikan Tautan Pendaftaran Publik Peserta Non Gelar (Login Google)"
+            >
+              <Share2 className="w-3.5 h-3.5 text-amber-600" />
+              <span>Link Pendaftaran</span>
+            </button>
+          )}
 
           {/* Quick Select All Data Button */}
           <div className="relative">
