@@ -5,7 +5,7 @@ import {
   Eye, Check, Copy, X, Search, Building2, Calendar, Award,
   ArrowLeft, Info, Filter, Lock
 } from 'lucide-react';
-import { Peserta, Kategori, Program } from '../types';
+import { Peserta, Kategori, Program, SettingApp } from '../types';
 import { UnpadLogo } from './UnpadLogo';
 import { DashboardView } from './DashboardView';
 import { MapDashboardView } from './MapDashboardView';
@@ -16,6 +16,7 @@ interface PublicPortalViewProps {
   kategoriList: Kategori[];
   programList: Program[];
   allPesertaList: Peserta[];
+  settings?: SettingApp;
   initialTab?: 'dashboard' | 'peta' | 'daftar';
   onBackToLogin: () => void;
   onRefreshData?: () => void;
@@ -46,6 +47,7 @@ export const PublicPortalView: React.FC<PublicPortalViewProps> = ({
   kategoriList,
   programList,
   allPesertaList,
+  settings,
   initialTab = 'dashboard',
   onBackToLogin,
   onRefreshData,
@@ -374,6 +376,7 @@ export const PublicPortalView: React.FC<PublicPortalViewProps> = ({
             kategoriList={kategoriList}
             programList={programList}
             allPesertaList={allPesertaList}
+            settings={settings}
             onBackToLogin={onBackToLogin}
             onRefreshData={onRefreshData}
             onNavigateToDashboard={() => handleTabChange('dashboard')}

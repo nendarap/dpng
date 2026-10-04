@@ -495,6 +495,7 @@ export default function App() {
           kategoriList={kategoriList}
           programList={programList}
           allPesertaList={pesertaList}
+          settings={settings}
           initialTab={publicPortalMode}
           isLoggedIn={isLoggedIn}
           onBackToLogin={() => {

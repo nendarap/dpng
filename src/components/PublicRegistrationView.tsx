@@ -4,11 +4,15 @@ import {
   Building2, Phone, Mail, MapPin, Calendar, Award, Download, Printer, 
   ExternalLink, Copy, Check, LogOut, ChevronRight, Search, ShieldCheck, 
   Sparkles, FileText, ArrowLeft, RefreshCw, QrCode, BookOpen, Clock, Users,
-  Plus, Upload, Eye, Trash2, FileCheck, AlertTriangle, ShieldAlert, Image as ImageIcon, X
+  Plus, Upload, Eye, Trash2, FileCheck, AlertTriangle, ShieldAlert, Image as ImageIcon, X,
+  Filter, CheckCircle, HelpCircle
 } from 'lucide-react';
-import { Peserta, Kategori, Program, DokumenPendaftaranItem, DokumenPendaftaran, StatusVerifikasiPendaftaran } from '../types';
+import { 
+  Peserta, Kategori, Program, DokumenPendaftaranItem, DokumenPendaftaran, 
+  StatusVerifikasiPendaftaran, SettingApp, PengaturanPendaftaran, StatusPendaftaranProgram 
+} from '../types';
 import { UnpadLogo } from './UnpadLogo';
-import { createPeserta, updatePeserta } from '../services/storageService';
+import { createPeserta, updatePeserta, checkProgramRegistrationStatus, getSettings } from '../services/storageService';
 
 interface GooglePublicUser {
   email: string;
@@ -22,6 +26,7 @@ interface PublicRegistrationViewProps {
   kategoriList: Kategori[];
   programList: Program[];
   allPesertaList: Peserta[];
+  settings?: SettingApp;
   onBackToLogin: () => void;
   onRefreshData?: () => void;
   onNavigateToDashboard?: () => void;
@@ -53,6 +58,7 @@ export const PublicRegistrationView: React.FC<PublicRegistrationViewProps> = ({
   kategoriList,
   programList,
   allPesertaList,
+  settings,
   onBackToLogin,
   onRefreshData,
   onNavigateToDashboard,
@@ -277,15 +283,92 @@ export const PublicRegistrationView: React.FC<PublicRegistrationViewProps> = ({
     handleGoogleLogin(user);
   };
 
-  // Filtered Programs based on selected category
-  const filteredPrograms = useMemo(() => {
-    if (!selectedKategori) return programList;
-    return programList.filter(p => getProgKategori(p) === selectedKategori || p.idKategori === selectedKategori);
-  }, [programList, selectedKategori, kategoriList]);
+  // Effective App Settings and Registration Configuration from Admin
+  const currentSettings = useMemo(() => {
+    return settings || getSettings();
+  }, [settings]);
 
+  const regConfig: PengaturanPendaftaran = useMemo(() => {
+    return currentSettings.pengaturanPendaftaran || {
+      statusPendaftaranGlobal: 'Buka',
+      pesanPendaftaranDitutup: 'Pendaftaran program pelatihan pendidikan non-gelar Universitas Padjadjaran sedang ditutup sementara.',
+      autoTutupJikaLewatDeadline: true,
+      autoTutupJikaKuotaPenuh: true,
+      kontakBantuanWa: '081224681357',
+      kontakBantuanEmail: 'dpng@unpad.ac.id',
+      pengumumanPendaftaran: 'Pendaftaran Program Pelatihan Pendidikan Non Gelar Unpad Tahun 2026 telah dibuka. Silakan pilih kategori dan program yang tersedia.',
+      tampilkanSisaKuotaPublik: true,
+      tampilkanPeriodePublik: true,
+    };
+  }, [currentSettings]);
+
+  // Filter toggle: Hanya tampilkan program yang sedang BUKA
+  const [filterHanyaBuka, setFilterHanyaBuka] = useState<boolean>(true);
+
+  // Status mapping for all programs based on admin configuration
+  const programStatusMap = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof checkProgramRegistrationStatus>>();
+    programList.forEach(prog => {
+      const pId = getProgId(prog);
+      const kat = kategoriList.find(k => k.idKategori === prog.idKategori || k.namaKategori === getProgKategori(prog));
+      const stat = checkProgramRegistrationStatus(prog, kat, currentSettings, allPesertaList);
+      map.set(pId, stat);
+    });
+    return map;
+  }, [programList, kategoriList, currentSettings, allPesertaList]);
+
+  // Selected Category Object & its admin status
+  const selectedKategoriObj = useMemo(() => {
+    if (!selectedKategori) return null;
+    return kategoriList.find(k => k.namaKategori === selectedKategori || k.idKategori === selectedKategori) || null;
+  }, [kategoriList, selectedKategori]);
+
+  const isSelectedCategoryClosed = useMemo(() => {
+    return selectedKategoriObj?.statusPendaftaranKategori === 'Tutup';
+  }, [selectedKategoriObj]);
+
+  // Selected Program Object & its admin status
   const selectedProgramObj = useMemo(() => {
     return programList.find(p => getProgId(p) === selectedProgramId);
   }, [programList, selectedProgramId]);
+
+  const selectedProgramStatus = useMemo(() => {
+    if (!selectedProgramObj) return null;
+    return programStatusMap.get(getProgId(selectedProgramObj)) || checkProgramRegistrationStatus(selectedProgramObj, selectedKategoriObj || undefined, currentSettings, allPesertaList);
+  }, [selectedProgramObj, selectedKategoriObj, programStatusMap, currentSettings, allPesertaList]);
+
+  // Filtered Programs based on selected category and admin open/closed settings
+  const filteredPrograms = useMemo(() => {
+    let list = programList;
+    if (selectedKategori) {
+      list = list.filter(p => getProgKategori(p) === selectedKategori || p.idKategori === selectedKategori);
+    }
+    if (filterHanyaBuka) {
+      list = list.filter(p => {
+        const stat = programStatusMap.get(getProgId(p));
+        return stat ? stat.isOpen : true;
+      });
+    }
+    return list;
+  }, [programList, selectedKategori, kategoriList, filterHanyaBuka, programStatusMap]);
+
+  // Total Open Programs Count
+  const openProgramsCount = useMemo(() => {
+    let count = 0;
+    programList.forEach(p => {
+      const stat = programStatusMap.get(getProgId(p));
+      if (stat?.isOpen) count++;
+    });
+    return count;
+  }, [programList, programStatusMap]);
+
+  // Whether registration submission is blocked by admin rules
+  const isRegistrationBlocked = useMemo(() => {
+    if (regConfig.statusPendaftaranGlobal === 'Tutup') return true;
+    if (isSelectedCategoryClosed) return true;
+    if (selectedProgramStatus && !selectedProgramStatus.isOpen) return true;
+    return false;
+  }, [regConfig.statusPendaftaranGlobal, isSelectedCategoryClosed, selectedProgramStatus]);
 
   // My Registrations (Query all registrations by this Google user's email)
   const myRegistrations = useMemo(() => {
@@ -315,6 +398,22 @@ export const PublicRegistrationView: React.FC<PublicRegistrationViewProps> = ({
 
     if (!selectedProgramId) {
       setErrorMessage('Silakan pilih Program Pelatihan yang ingin Anda ikuti.');
+      return;
+    }
+
+    // Validasi Pengaturan Buka/Tutup Admin
+    if (regConfig.statusPendaftaranGlobal === 'Tutup') {
+      setErrorMessage(`Pendaftaran Ditutup: ${regConfig.pesanPendaftaranDitutup || 'Pendaftaran seluruh program sedang ditutup sementara oleh Administrator.'}`);
+      return;
+    }
+
+    if (isSelectedCategoryClosed) {
+      setErrorMessage(`Kategori Ditutup: Pendaftaran untuk seluruh program dalam kategori "${selectedKategoriObj?.namaKategori}" sedang ditutup oleh pihak Administrator.`);
+      return;
+    }
+
+    if (selectedProgramStatus && !selectedProgramStatus.isOpen) {
+      setErrorMessage(`Pendaftaran Tidak Dapat Diproses: ${selectedProgramStatus.reason || 'Program pelatihan yang Anda pilih saat ini sedang tidak menerima pendaftaran baru.'}`);
       return;
     }
 
@@ -526,6 +625,72 @@ export const PublicRegistrationView: React.FC<PublicRegistrationViewProps> = ({
 
       {/* Main Container */}
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 pb-16">
+        {/* Admin Announcement / Registration Status Notice */}
+        {regConfig.statusPendaftaranGlobal === 'Tutup' ? (
+          <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-5 mb-6 text-rose-900 shadow-md">
+            <div className="flex items-start gap-3.5">
+              <div className="p-2.5 bg-rose-100 rounded-xl text-rose-700 shrink-0 mt-0.5">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="font-black text-base text-rose-950">
+                    Pemberitahuan: Pendaftaran Program Pelatihan Sedang Ditutup Sementara
+                  </h3>
+                  <span className="px-2 py-0.5 bg-rose-200 text-rose-900 font-bold text-[10px] rounded-full">
+                    Ditutup Global
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-rose-800 leading-relaxed">
+                  {regConfig.pesanPendaftaranDitutup || 'Pendaftaran seluruh program pendidikan non-gelar Universitas Padjadjaran sedang ditutup sementara oleh Administrator. Silakan pantau pengumuman resmi atau hubungi narahubung kami.'}
+                </p>
+                {(regConfig.kontakBantuanWa || regConfig.kontakBantuanEmail) && (
+                  <div className="mt-3 pt-3 border-t border-rose-200 flex flex-wrap items-center gap-3 text-xs font-semibold">
+                    <span className="text-rose-900">Pusat Bantuan & Informasi:</span>
+                    {regConfig.kontakBantuanWa && (
+                      <a 
+                        href={`https://wa.me/${regConfig.kontakBantuanWa.replace(/\D/g, '')}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-rose-300 rounded-lg text-emerald-700 hover:bg-emerald-50 transition-colors"
+                      >
+                        <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>WhatsApp: {regConfig.kontakBantuanWa}</span>
+                      </a>
+                    )}
+                    {regConfig.kontakBantuanEmail && (
+                      <a 
+                        href={`mailto:${regConfig.kontakBantuanEmail}`}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-rose-300 rounded-lg text-blue-700 hover:bg-blue-50 transition-colors"
+                      >
+                        <Mail className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Email: {regConfig.kontakBantuanEmail}</span>
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : regConfig.pengumumanPendaftaran ? (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-4 sm:p-5 mb-6 text-slate-800 shadow-xs flex items-start gap-3.5">
+            <div className="p-2 bg-[#002B66] text-[#FDB913] rounded-xl shrink-0 mt-0.5">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div className="flex-1 text-xs sm:text-sm">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="font-bold text-[#002B66] text-sm">Pengumuman Pendaftaran Peserta</span>
+                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-bold text-[10px] rounded-full border border-emerald-300">
+                  Pendaftaran Dibuka
+                </span>
+              </div>
+              <p className="text-slate-700 leading-relaxed">
+                {regConfig.pengumumanPendaftaran}
+              </p>
+            </div>
+          </div>
+        ) : null}
+
         {/* Google Authentication Section */}
         <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden mb-6">
           <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-50 to-blue-50/50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -774,13 +939,26 @@ export const PublicRegistrationView: React.FC<PublicRegistrationViewProps> = ({
                 )}
 
                 <div className="p-6 sm:p-8 space-y-6">
-                  {/* Bagian 1: Pilihan Program */}
+                  {/* Bagian 1: Pilihan Program Pelatihan (Disesuaikan dengan Pengaturan Admin) */}
                   <div className="space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                      <span className="w-6 h-6 rounded-full bg-[#002B66] text-[#FDB913] flex items-center justify-center text-xs font-black">
-                        1
-                      </span>
-                      <h3 className="font-bold text-sm text-[#002B66]">Pilihan Program Pelatihan</h3>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-slate-100 gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-[#002B66] text-[#FDB913] flex items-center justify-center text-xs font-black">
+                          1
+                        </span>
+                        <h3 className="font-bold text-sm text-[#002B66]">Pilihan Program Pelatihan</h3>
+                      </div>
+
+                      {/* Filter Toggle: Saring hanya yang buka */}
+                      <label className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors self-start sm:self-auto select-none">
+                        <input
+                          type="checkbox"
+                          checked={filterHanyaBuka}
+                          onChange={(e) => setFilterHanyaBuka(e.target.checked)}
+                          className="rounded text-[#002B66] focus:ring-[#002B66] accent-[#002B66] w-3.5 h-3.5 cursor-pointer"
+                        />
+                        <span>Hanya Program Buka ({openProgramsCount} dari {programList.length})</span>
+                      </label>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
@@ -797,16 +975,26 @@ export const PublicRegistrationView: React.FC<PublicRegistrationViewProps> = ({
                           className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#002B66] focus:outline-hidden font-medium"
                         >
                           <option value="">-- Semua Kategori Program --</option>
-                          {kategoriList.map(k => (
-                            <option key={k.idKategori} value={k.namaKategori}>{k.namaKategori}</option>
-                          ))}
+                          {kategoriList.map(k => {
+                            const isCatClosed = k.statusPendaftaranKategori === 'Tutup';
+                            return (
+                              <option key={k.idKategori} value={k.namaKategori}>
+                                {k.namaKategori} {isCatClosed ? '🔴 (Pendaftaran Ditutup)' : ''}
+                              </option>
+                            );
+                          })}
                         </select>
                       </div>
 
                       <div>
-                        <label className="block font-semibold text-slate-700 mb-1">
-                          Nama Program Pelatihan <span className="text-rose-500">*</span>
-                        </label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="font-semibold text-slate-700">
+                            Nama Program Pelatihan <span className="text-rose-500">*</span>
+                          </label>
+                          <span className="text-[10px] text-slate-500">
+                            Tersedia: {filteredPrograms.length} program
+                          </span>
+                        </div>
                         <select
                           required
                           value={selectedProgramId}
@@ -816,19 +1004,47 @@ export const PublicRegistrationView: React.FC<PublicRegistrationViewProps> = ({
                             const found = programList.find(p => getProgId(p) === progId);
                             if (found && !selectedKategori) setSelectedKategori(getProgKategori(found));
                           }}
-                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#002B66] focus:outline-hidden font-medium"
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#002B66] focus:outline-hidden font-medium ${
+                            selectedProgramStatus && !selectedProgramStatus.isOpen
+                              ? 'border-rose-300 bg-rose-50/20'
+                              : 'border-slate-300'
+                          }`}
                         >
                           <option value="">-- Pilih Program Pelatihan --</option>
                           {filteredPrograms.map(p => {
                             const pId = getProgId(p);
+                            const stat = programStatusMap.get(pId);
+                            const isOpen = stat?.isOpen ?? true;
+                            const statusLabel = stat?.status || 'Buka';
+                            const quotaText = (regConfig.tampilkanSisaKuotaPublik && stat?.sisaKuota !== undefined)
+                              ? ` • Sisa: ${stat.sisaKuota}`
+                              : '';
+
                             return (
-                              <option key={pId} value={pId}>
-                                {p.namaProgram} ({p.durasi || 'Non Gelar'})
+                              <option 
+                                key={pId} 
+                                value={pId}
+                                className={isOpen ? 'text-slate-900 font-medium' : 'text-slate-400 italic'}
+                              >
+                                {isOpen ? '🟢 [BUKA]' : `🔴 [${statusLabel.toUpperCase()}]`} {p.namaProgram} ({p.durasi || 'Non Gelar'}){quotaText}
                               </option>
                             );
                           })}
                         </select>
                       </div>
+
+                      {/* Category Closed Warning Notice */}
+                      {isSelectedCategoryClosed && (
+                        <div className="md:col-span-2 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-start gap-2.5">
+                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                          <div className="space-y-0.5">
+                            <span className="font-bold block">Pendaftaran Kategori Ini Sedang Ditutup</span>
+                            <span className="text-[11px] text-rose-700 leading-relaxed block">
+                              Seluruh program di bawah kategori "{selectedKategoriObj?.namaKategori}" saat ini tidak menerima pendaftaran baru berdasarkan pengaturan Administrator.
+                            </span>
+                          </div>
+                        </div>
+                      )}
 
                       <div>
                         <label className="block font-semibold text-slate-700 mb-1">
@@ -860,22 +1076,105 @@ export const PublicRegistrationView: React.FC<PublicRegistrationViewProps> = ({
                       </div>
                     </div>
 
-                    {/* Program Information Card Preview */}
+                    {/* Program Information Card Preview with Realtime Admin Settings */}
                     {selectedProgramObj && (
-                      <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-[#002B66] text-sm block">
-                            {selectedProgramObj.namaProgram}
-                          </span>
-                          <span className="text-slate-600 block">
-                            Kategori: <strong>{getProgKategori(selectedProgramObj)}</strong> • Durasi: <strong>{selectedProgramObj.durasi || 'Sesuai Jadwal'}</strong>
-                          </span>
+                      <div className={`rounded-xl p-4 border transition-all space-y-3 text-xs ${
+                        selectedProgramStatus?.isOpen
+                          ? 'bg-gradient-to-r from-emerald-50/60 to-blue-50/60 border-emerald-200'
+                          : 'bg-rose-50/80 border-rose-200'
+                      }`}>
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-bold text-[#002B66] text-sm block">
+                                {selectedProgramObj.namaProgram}
+                              </span>
+                              
+                              {/* Status Badge from Admin */}
+                              {selectedProgramStatus?.isOpen ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                  <span>Pendaftaran Dibuka</span>
+                                </span>
+                              ) : selectedProgramStatus?.status === 'Segera Dibuka' ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                  <Clock className="w-3 h-3 text-amber-600" />
+                                  <span>Segera Dibuka</span>
+                                </span>
+                              ) : selectedProgramStatus?.status === 'Penuh' ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-800 border border-slate-300">
+                                  <Users className="w-3 h-3 text-slate-600" />
+                                  <span>Kuota Terpenuhi</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                                  <X className="w-3 h-3 text-rose-600" />
+                                  <span>Pendaftaran Ditutup</span>
+                                </span>
+                              )}
+                            </div>
+
+                            <span className="text-slate-600 block">
+                              Kategori: <strong>{getProgKategori(selectedProgramObj)}</strong> • Durasi: <strong>{selectedProgramObj.durasi || 'Sesuai Jadwal'}</strong>
+                            </span>
+                          </div>
+
+                          <div className="text-left sm:text-right shrink-0">
+                            <span className="text-[10px] text-slate-500 block">Biaya Investasi:</span>
+                            <span className="font-bold text-[#002B66] text-sm">
+                              {selectedProgramObj.biaya ? `Rp ${selectedProgramObj.biaya.toLocaleString('id-ID')}` : 'Sesuai Ketentuan Program'}
+                            </span>
+                          </div>
                         </div>
-                        <div className="text-right shrink-0">
-                          <span className="text-[10px] text-slate-500 block">Biaya Investasi:</span>
-                          <span className="font-bold text-[#002B66] text-sm">
-                            {selectedProgramObj.biaya ? `Rp ${selectedProgramObj.biaya.toLocaleString('id-ID')}` : 'Sesuai Ketentuan Program'}
-                          </span>
+
+                        {/* Closed Reason Notice if not open */}
+                        {!selectedProgramStatus?.isOpen && (
+                          <div className="p-2.5 bg-rose-100/70 border border-rose-200 rounded-lg text-rose-900 flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                            <div className="text-[11px] leading-relaxed">
+                              <strong>Alasan Penutupan:</strong> {selectedProgramStatus?.reason || 'Program ini sedang tidak menerima registrasi baru berdasarkan jadwal atau kuota.'}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Metadata Rows: Periode Pendaftaran & Kuota */}
+                        <div className="pt-2 border-t border-slate-200/60 grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] text-slate-600">
+                          {regConfig.tampilkanPeriodePublik && (
+                            <div className="flex items-center gap-2">
+                              <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <span>
+                                Periode: <strong>{selectedProgramObj.tanggalBukaPendaftaran || 'Buka'}</strong> s/d <strong>{selectedProgramObj.tanggalTutupPendaftaran || 'Selesai'}</strong>
+                              </span>
+                            </div>
+                          )}
+
+                          {regConfig.tampilkanSisaKuotaPublik && selectedProgramStatus && (
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center justify-between">
+                                <span className="flex items-center gap-1.5">
+                                  <Users className="w-3.5 h-3.5 text-slate-400" />
+                                  <span>Sisa Kuota: <strong>{selectedProgramStatus.sisaKuota ?? 0}</strong> kursi</span>
+                                </span>
+                                <span className="font-mono text-[10px] text-slate-500">
+                                  {selectedProgramStatus.totalTerdaftar} / {selectedProgramStatus.kuotaTotal || selectedProgramObj.kuotaPeserta || 30}
+                                </span>
+                              </div>
+                              <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full rounded-full transition-all ${
+                                    (selectedProgramStatus.sisaKuota ?? 0) <= 0 
+                                      ? 'bg-rose-500' 
+                                      : (selectedProgramStatus.sisaKuota ?? 0) <= 5 
+                                        ? 'bg-amber-500' 
+                                        : 'bg-emerald-500'
+                                  }`}
+                                  style={{
+                                    width: `${Math.min(100, Math.round((selectedProgramStatus.totalTerdaftar / (selectedProgramStatus.kuotaTotal || selectedProgramObj.kuotaPeserta || 30)) * 100))}%`
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
@@ -1458,32 +1757,59 @@ export const PublicRegistrationView: React.FC<PublicRegistrationViewProps> = ({
                 </div>
 
                 {/* Submit Action Bar */}
-                <div className="p-6 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="text-xs text-slate-500 text-center sm:text-left">
-                    {googleUser ? (
-                      <span>Terdaftar dengan akun Google: <strong className="text-slate-800">{googleUser.email}</strong></span>
-                    ) : (
-                      <span className="text-amber-700 font-semibold">⚠️ Anda harus masuk dengan Akun Google sebelum mengirim</span>
-                    )}
+                <div className="p-6 bg-slate-50 border-t border-slate-200 flex flex-col gap-3">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="text-xs text-slate-500 text-center sm:text-left">
+                      {googleUser ? (
+                        <span>Terdaftar dengan akun Google: <strong className="text-slate-800">{googleUser.email}</strong></span>
+                      ) : (
+                        <span className="text-amber-700 font-semibold">⚠️ Anda harus masuk dengan Akun Google sebelum mengirim</span>
+                      )}
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || isRegistrationBlocked}
+                      className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3 rounded-xl text-xs font-bold shadow-lg transition-all ${
+                        isRegistrationBlocked
+                          ? 'bg-slate-300 text-slate-500 border border-slate-300 cursor-not-allowed shadow-none'
+                          : 'bg-[#002B66] hover:bg-[#001D45] text-white shadow-blue-900/20 cursor-pointer hover:scale-102 disabled:opacity-50 disabled:cursor-not-allowed'
+                      }`}
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin text-[#FDB913]" />
+                          <span>Memproses Pendaftaran...</span>
+                        </>
+                      ) : isRegistrationBlocked ? (
+                        <>
+                          <AlertTriangle className="w-4 h-4 text-rose-500" />
+                          <span>Pendaftaran Ditutup ({selectedProgramStatus?.status || 'Tutup'})</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Kirimkan Pendaftaran Sekarang</span>
+                          <ArrowRight className="w-4 h-4 text-[#FDB913]" />
+                        </>
+                      )}
+                    </button>
                   </div>
 
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3 bg-[#002B66] hover:bg-[#001D45] text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-900/20 cursor-pointer transition-all hover:scale-102 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin text-[#FDB913]" />
-                        <span>Memproses Pendaftaran...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Kirimkan Pendaftaran Sekarang</span>
-                        <ArrowRight className="w-4 h-4 text-[#FDB913]" />
-                      </>
-                    )}
-                  </button>
+                  {isRegistrationBlocked && (
+                    <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                        <span>
+                          {selectedProgramStatus?.reason || regConfig.pesanPendaftaranDitutup || 'Program atau kategori yang Anda pilih saat ini sedang tidak membuka pendaftaran baru.'}
+                        </span>
+                      </div>
+                      {(regConfig.kontakBantuanWa || regConfig.kontakBantuanEmail) && (
+                        <span className="text-[11px] text-slate-500 shrink-0">
+                          Hubungi Bantuan: {regConfig.kontakBantuanWa || regConfig.kontakBantuanEmail}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </form>
             )}
