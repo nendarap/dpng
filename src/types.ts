@@ -15,6 +15,29 @@ export type StatusKelulusan =
   | 'Belum Evaluasi' 
   | 'Mengundurkan Diri';
 
+export type StatusVerifikasiPendaftaran = 
+  | 'Menunggu Verifikasi'
+  | 'Terverifikasi'
+  | 'Perlu Perbaikan'
+  | 'Ditolak';
+
+export interface DokumenPendaftaranItem {
+  namaFile: string;
+  tipeDokumen: 'ktp' | 'kk' | 'pas_photo' | 'ijazah';
+  fileUrl?: string; // base64 Data URL or mock image/pdf url
+  fileSize?: string;
+  uploadedAt: string;
+  statusVerifikasiDokumen?: 'Menunggu' | 'Valid' | 'Tidak Valid';
+  catatanDokumen?: string;
+}
+
+export interface DokumenPendaftaran {
+  ktp?: DokumenPendaftaranItem;
+  kartuKeluarga?: DokumenPendaftaranItem;
+  pasPhoto?: DokumenPendaftaranItem;
+  ijazahTerakhir?: DokumenPendaftaranItem;
+}
+
 export interface Peserta {
   id: string; // ID Peserta: DPNG-2026-000001
   nomorRegistrasi: string;
@@ -45,6 +68,13 @@ export interface Peserta {
   tanggalSelesai: string;
   statusPeserta: StatusPeserta;
   statusKelulusan: StatusKelulusan;
+  // Verifikasi Dokumen & Pendaftaran
+  statusVerifikasi?: StatusVerifikasiPendaftaran;
+  tanggalVerifikasi?: string;
+  verifikatorNama?: string;
+  verifikatorRole?: 'ADMIN' | 'PIC' | 'OPERATOR' | string;
+  catatanVerifikasi?: string;
+  dokumen?: DokumenPendaftaran;
   nomorSertifikat: string;
   tanggalSertifikat: string;
   nilaiSkor: string;

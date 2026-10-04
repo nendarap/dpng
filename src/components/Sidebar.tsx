@@ -4,7 +4,7 @@ import {
   Search, FileSpreadsheet, Download, BarChart3, ShieldCheck, 
   History, Settings, Code, X, LogOut, Map as MapIcon, UserCheck, Compass,
   SlidersHorizontal, Shield, ChevronRight, ChevronDown, DatabaseBackup, Database,
-  Briefcase, Folder
+  Briefcase, Folder, Globe
 } from 'lucide-react';
 import { UserRole, GroupAkun, UserItem, AppMenuId, AppMenuItemDef, AppThemeId } from '../types';
 import { hasMenuAccess } from '../data/privilegeData';
@@ -45,6 +45,7 @@ interface SidebarProps {
   onLogout?: () => void;
   onOpenSheetModal?: () => void;
   currentTheme?: AppThemeId;
+  onOpenPublicPortal?: (tab?: 'dashboard' | 'peta' | 'daftar') => void;
 }
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -82,6 +83,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onLogout,
   onOpenSheetModal,
   currentTheme = 'unpad-blue',
+  onOpenPublicPortal,
 }) => {
   // Ambil background class berdasarkan tema aktif
   const themeBg = currentTheme === 'unpad-emerald'
@@ -391,6 +393,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {currentUser.groupId || currentUser.role}
               </span>
             </div>
+          )}
+
+          {onOpenPublicPortal && (
+            <button
+              type="button"
+              id="sidebar-btn-public-portal"
+              onClick={() => onOpenPublicPortal('dashboard')}
+              className="w-full flex items-center justify-between py-2 px-2.5 rounded-lg bg-white/10 hover:bg-white/15 text-amber-300 hover:text-amber-200 border border-white/10 text-xs font-bold transition-colors cursor-pointer"
+              title="Buka Tampilan Publik (Dashboard & Peta Sebaran View Only)"
+            >
+              <div className="flex items-center gap-2">
+                <Globe className="w-3.5 h-3.5 text-[#FDB913]" />
+                <span>Portal Publik</span>
+              </div>
+              <span className="text-[10px] bg-[#FDB913] text-[#002B66] px-1.5 py-0.5 rounded font-black">
+                View Only
+              </span>
+            </button>
           )}
 
           {onLogout && (

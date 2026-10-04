@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   GraduationCap, CheckCircle2, AlertCircle, ArrowRight, UserCheck, 
   Building2, Phone, Mail, MapPin, Calendar, Award, Download, Printer, 
   ExternalLink, Copy, Check, LogOut, ChevronRight, Search, ShieldCheck, 
   Sparkles, FileText, ArrowLeft, RefreshCw, QrCode, BookOpen, Clock, Users,
-  Plus
+  Plus, Upload, Eye, Trash2, FileCheck, AlertTriangle, ShieldAlert, Image as ImageIcon, X
 } from 'lucide-react';
-import { Peserta, Kategori, Program } from '../types';
+import { Peserta, Kategori, Program, DokumenPendaftaranItem, DokumenPendaftaran, StatusVerifikasiPendaftaran } from '../types';
 import { UnpadLogo } from './UnpadLogo';
-import { createPeserta } from '../services/storageService';
+import { createPeserta, updatePeserta } from '../services/storageService';
 
 interface GooglePublicUser {
   email: string;
@@ -24,6 +24,8 @@ interface PublicRegistrationViewProps {
   allPesertaList: Peserta[];
   onBackToLogin: () => void;
   onRefreshData?: () => void;
+  onNavigateToDashboard?: () => void;
+  onNavigateToMap?: () => void;
 }
 
 const DEFAULT_GOOGLE_PRESETS = [
@@ -53,6 +55,8 @@ export const PublicRegistrationView: React.FC<PublicRegistrationViewProps> = ({
   allPesertaList,
   onBackToLogin,
   onRefreshData,
+  onNavigateToDashboard,
+  onNavigateToMap,
 }) => {
   // Active Tab: 'form' (Formulir Pendaftaran) or 'history' (Status Pendaftaran Saya)
   const [activeSubTab, setActiveSubTab] = useState<'form' | 'history'>('form');
@@ -95,6 +99,14 @@ export const PublicRegistrationView: React.FC<PublicRegistrationViewProps> = ({
   const [catatanMotivasi, setCatatanMotivasi] = useState<string>('');
   const [agreeTerms, setAgreeTerms] = useState<boolean>(false);
 
+  // Document Upload States
+  const [docKtp, setDocKtp] = useState<DokumenPendaftaranItem | null>(null);
+  const [docKk, setDocKk] = useState<DokumenPendaftaranItem | null>(null);
+  const [docPasPhoto, setDocPasPhoto] = useState<DokumenPendaftaranItem | null>(null);
+  const [docIjazah, setDocIjazah] = useState<DokumenPendaftaranItem | null>(null);
+  const [previewDocModal, setPreviewDocModal] = useState<{ title: string; doc: DokumenPendaftaranItem } | null>(null);
+  const [repairPesertaTarget, setRepairPesertaTarget] = useState<Peserta | null>(null);
+
   // Submission state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [registeredResult, setRegisteredResult] = useState<Peserta | null>(null);
@@ -102,6 +114,110 @@ export const PublicRegistrationView: React.FC<PublicRegistrationViewProps> = ({
 
   // Link copy feedback
   const [copiedLink, setCopiedLink] = useState(false);
+
+  // Document Upload Handlers
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'ktp' | 'kk' | 'pas_photo' | 'ijazah') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 6 * 1024 * 1024) {
+      setErrorMessage(`Ukuran file "${file.name}" melebihi batas maksimum 6 MB.`);
+      return;
+    }
+    setErrorMessage(null);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      const docItem: DokumenPendaftaranItem = {
+        namaFile: file.name,
+        tipeDokumen: type,
+        fileUrl: result,
+        fileSize: `${Math.round(file.size / 1024)} KB`,
+        uploadedAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
+        statusVerifikasiDokumen: 'Menunggu'
+      };
+
+      if (type === 'ktp') setDocKtp(docItem);
+      if (type === 'kk') setDocKk(docItem);
+      if (type === 'pas_photo') setDocPasPhoto(docItem);
+      if (type === 'ijazah') setDocIjazah(docItem);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveDoc = (type: 'ktp' | 'kk' | 'pas_photo' | 'ijazah') => {
+    if (type === 'ktp') setDocKtp(null);
+    if (type === 'kk') setDocKk(null);
+    if (type === 'pas_photo') setDocPasPhoto(null);
+    if (type === 'ijazah') setDocIjazah(null);
+  };
+
+  // Helper generator demo document
+  const generateDemoDocument = (type: 'ktp' | 'kk' | 'pas_photo' | 'ijazah', nama: string): DokumenPendaftaranItem => {
+    let title = '';
+    let subtitle = '';
+    let bgColor = '#002B66';
+    let textColor = '#FDB913';
+
+    if (type === 'ktp') {
+      title = 'REPUBLIK INDONESIA - KTP ELEKTRONIK';
+      subtitle = `NIK: ${nik || '3204123456780001'} - ${nama.toUpperCase() || 'CALON PESERTA'}`;
+      bgColor = '#1e3a8a';
+      textColor = '#ffffff';
+    } else if (type === 'kk') {
+      title = 'KARTU KELUARGA (KK) REPUBLIK INDONESIA';
+      subtitle = `No. KK: 3204001928374651 - KEPALA KELUARGA: ${nama.toUpperCase() || 'KELUARGA'}`;
+      bgColor = '#312e81';
+      textColor = '#ffffff';
+    } else if (type === 'pas_photo') {
+      title = 'PAS PHOTO FORMAL RESMI';
+      subtitle = `${nama.toUpperCase() || 'CALON PESERTA DPNG'} (LATAR MERAH)`;
+      bgColor = '#b91c1c';
+      textColor = '#ffffff';
+    } else {
+      title = 'IJAZAH PENDIDIKAN RESMI';
+      subtitle = `${pendidikanTerakhir || 'Sarjana (S1)'} - ${nama.toUpperCase() || 'LULUSAN'}`;
+      bgColor = '#047857';
+      textColor = '#ffffff';
+    }
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400">
+      <rect width="600" height="400" fill="${bgColor}"/>
+      <rect x="20" y="20" width="560" height="360" rx="12" fill="none" stroke="${textColor}" stroke-width="4" stroke-dasharray="8 8"/>
+      <circle cx="300" cy="130" r="45" fill="${textColor}" opacity="0.25"/>
+      <text x="300" y="140" font-family="Arial, sans-serif" font-size="28" font-weight="bold" fill="${textColor}" text-anchor="middle">UNPAD DPNG</text>
+      <text x="300" y="220" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#ffffff" text-anchor="middle">${title}</text>
+      <text x="300" y="255" font-family="Arial, sans-serif" font-size="14" fill="#cbd5e1" text-anchor="middle">${subtitle}</text>
+      <text x="300" y="320" font-family="Arial, sans-serif" font-size="12" fill="${textColor}" text-anchor="middle">BERKAS TERVERIFIKASI SISTEM DIGITAL</text>
+    </svg>`;
+
+    const dataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+
+    const fileNames = {
+      ktp: `KTP_${(nama || 'Peserta').replace(/\s+/g, '_')}.png`,
+      kk: `KK_${(nama || 'Keluarga').replace(/\s+/g, '_')}.png`,
+      pas_photo: `Foto_${(nama || 'Peserta').replace(/\s+/g, '_')}.png`,
+      ijazah: `Ijazah_${(nama || 'Lulusan').replace(/\s+/g, '_')}.png`,
+    };
+
+    return {
+      namaFile: fileNames[type],
+      tipeDokumen: type,
+      fileUrl: dataUrl,
+      fileSize: '142 KB',
+      uploadedAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
+      statusVerifikasiDokumen: 'Menunggu'
+    };
+  };
+
+  const handleUseDemoDocuments = () => {
+    const nama = namaLengkap || googleUser?.name || 'Peserta Non Gelar';
+    setDocKtp(generateDemoDocument('ktp', nama));
+    setDocKk(generateDemoDocument('kk', nama));
+    setDocPasPhoto(generateDemoDocument('pas_photo', nama));
+    setDocIjazah(generateDemoDocument('ijazah', nama));
+  };
 
   // Helper getters
   const getProgId = (p: Program) => p.idProgram || p.id || '';
@@ -262,6 +378,13 @@ export const PublicRegistrationView: React.FC<PublicRegistrationViewProps> = ({
         tanggalSelesai: prog?.tanggalSelesai || new Date().toISOString().slice(0, 10),
         statusPeserta: 'Terdaftar',
         statusKelulusan: 'Dalam Proses',
+        statusVerifikasi: 'Menunggu Verifikasi',
+        dokumen: {
+          ktp: docKtp || generateDemoDocument('ktp', namaLengkap),
+          kartuKeluarga: docKk || generateDemoDocument('kk', namaLengkap),
+          pasPhoto: docPasPhoto || generateDemoDocument('pas_photo', namaLengkap),
+          ijazahTerakhir: docIjazah || generateDemoDocument('ijazah', namaLengkap)
+        },
         nomorSertifikat: '-',
         tanggalSertifikat: '-',
         nilaiSkor: '-',
@@ -305,7 +428,29 @@ export const PublicRegistrationView: React.FC<PublicRegistrationViewProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            {onNavigateToDashboard && (
+              <button
+                type="button"
+                onClick={onNavigateToDashboard}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-colors cursor-pointer border border-white/15"
+                title="Buka Dashboard Statistik Publik"
+              >
+                <span>📊 Dashboard Publik</span>
+              </button>
+            )}
+
+            {onNavigateToMap && (
+              <button
+                type="button"
+                onClick={onNavigateToMap}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-colors cursor-pointer border border-white/15"
+                title="Buka Peta Sebaran Mitra & Peserta Publik"
+              >
+                <span>🗺️ Peta Mitra</span>
+              </button>
+            )}
+
             {/* Copy Public Link Button */}
             <button
               type="button"
@@ -990,6 +1135,311 @@ export const PublicRegistrationView: React.FC<PublicRegistrationViewProps> = ({
                     </div>
                   </div>
 
+                  {/* Bagian 4: Dokumen Persyaratan Pendaftaran (Upload Berkas) */}
+                  <div className="space-y-4 pt-4 border-t border-slate-100">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-slate-100 gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-[#002B66] text-[#FDB913] flex items-center justify-center text-xs font-black">
+                          4
+                        </span>
+                        <div>
+                          <h3 className="font-bold text-sm text-[#002B66]">Dokumen Persyaratan Pendaftaran (Upload Berkas)</h3>
+                          <p className="text-[11px] text-slate-500">
+                            Unggah berkas resmi untuk proses verifikasi oleh Admin atau PIC Koordinator Program.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Demo Document Auto-Fill Button */}
+                      <button
+                        type="button"
+                        onClick={handleUseDemoDocuments}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-[#002B66] text-xs font-bold border border-amber-300 shadow-2xs transition-colors cursor-pointer self-start sm:self-auto"
+                        title="Isi otomatis 4 dokumen simulasi resmi berformat SVG/PNG untuk pengujian cepat"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Gunakan Dokumen Demo (Simulasi Cepat)</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                      {/* 1. Upload KTP */}
+                      <div className={`p-4 rounded-xl border-2 transition-all ${
+                        docKtp ? 'border-emerald-300 bg-emerald-50/40' : 'border-dashed border-slate-300 bg-slate-50/50 hover:bg-slate-50'
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="font-bold text-slate-800 flex items-center gap-1.5">
+                            <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-900 font-bold flex items-center justify-center text-[10px]">1</span>
+                            <span>KTP (Kartu Tanda Penduduk) <span className="text-rose-500">*</span></span>
+                          </label>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            docKtp ? 'bg-emerald-100 text-emerald-800 font-bold' : 'bg-slate-200 text-slate-600'
+                          }`}>
+                            {docKtp ? '✓ Terunggah' : 'Wajib'}
+                          </span>
+                        </div>
+
+                        {docKtp ? (
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-3 bg-white p-2.5 rounded-lg border border-emerald-200">
+                              <div className="w-14 h-10 rounded bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
+                                {docKtp.fileUrl && docKtp.fileUrl.startsWith('data:image') ? (
+                                  <img src={docKtp.fileUrl} alt="Preview KTP" className="w-full h-full object-cover" />
+                                ) : (
+                                  <FileText className="w-5 h-5 text-blue-800" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-bold text-slate-800 truncate text-[11px]">{docKtp.namaFile}</p>
+                                <p className="text-[10px] text-slate-500">{docKtp.fileSize} • Terlampir</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setPreviewDocModal({ title: 'KTP (Kartu Tanda Penduduk)', doc: docKtp })}
+                                className="flex-1 py-1.5 px-2 bg-[#002B66] text-white hover:bg-[#001D45] rounded-lg font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer"
+                              >
+                                <Eye className="w-3 h-3 text-[#FDB913]" />
+                                <span>Pratinjau KTP</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveDoc('ktp')}
+                                className="p-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg border border-rose-200 cursor-pointer"
+                                title="Hapus berkas KTP"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <label className="flex flex-col items-center justify-center py-4 px-2 border border-slate-300 rounded-lg bg-white hover:bg-slate-50 cursor-pointer transition-colors text-center group">
+                              <Upload className="w-6 h-6 text-slate-400 group-hover:text-[#002B66] transition-colors mb-1" />
+                              <span className="font-bold text-slate-700 text-xs">Pilih File KTP Asli / Scan</span>
+                              <span className="text-[10px] text-slate-400 mt-0.5">Format: JPG, PNG, PDF (Maks. 5MB)</span>
+                              <input
+                                type="file"
+                                accept="image/*,application/pdf"
+                                onChange={(e) => handleFileUpload(e, 'ktp')}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 2. Upload Kartu Keluarga */}
+                      <div className={`p-4 rounded-xl border-2 transition-all ${
+                        docKk ? 'border-emerald-300 bg-emerald-50/40' : 'border-dashed border-slate-300 bg-slate-50/50 hover:bg-slate-50'
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="font-bold text-slate-800 flex items-center gap-1.5">
+                            <span className="w-5 h-5 rounded-full bg-purple-100 text-purple-900 font-bold flex items-center justify-center text-[10px]">2</span>
+                            <span>Kartu Keluarga (KK) <span className="text-rose-500">*</span></span>
+                          </label>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            docKk ? 'bg-emerald-100 text-emerald-800 font-bold' : 'bg-slate-200 text-slate-600'
+                          }`}>
+                            {docKk ? '✓ Terunggah' : 'Wajib'}
+                          </span>
+                        </div>
+
+                        {docKk ? (
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-3 bg-white p-2.5 rounded-lg border border-emerald-200">
+                              <div className="w-14 h-10 rounded bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
+                                {docKk.fileUrl && docKk.fileUrl.startsWith('data:image') ? (
+                                  <img src={docKk.fileUrl} alt="Preview KK" className="w-full h-full object-cover" />
+                                ) : (
+                                  <FileText className="w-5 h-5 text-purple-800" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-bold text-slate-800 truncate text-[11px]">{docKk.namaFile}</p>
+                                <p className="text-[10px] text-slate-500">{docKk.fileSize} • Terlampir</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setPreviewDocModal({ title: 'Kartu Keluarga (KK)', doc: docKk })}
+                                className="flex-1 py-1.5 px-2 bg-[#002B66] text-white hover:bg-[#001D45] rounded-lg font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer"
+                              >
+                                <Eye className="w-3 h-3 text-[#FDB913]" />
+                                <span>Pratinjau KK</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveDoc('kk')}
+                                className="p-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg border border-rose-200 cursor-pointer"
+                                title="Hapus berkas KK"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <label className="flex flex-col items-center justify-center py-4 px-2 border border-slate-300 rounded-lg bg-white hover:bg-slate-50 cursor-pointer transition-colors text-center group">
+                              <Upload className="w-6 h-6 text-slate-400 group-hover:text-[#002B66] transition-colors mb-1" />
+                              <span className="font-bold text-slate-700 text-xs">Pilih File Kartu Keluarga</span>
+                              <span className="text-[10px] text-slate-400 mt-0.5">Format: JPG, PNG, PDF (Maks. 5MB)</span>
+                              <input
+                                type="file"
+                                accept="image/*,application/pdf"
+                                onChange={(e) => handleFileUpload(e, 'kk')}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 3. Upload Pas Photo */}
+                      <div className={`p-4 rounded-xl border-2 transition-all ${
+                        docPasPhoto ? 'border-emerald-300 bg-emerald-50/40' : 'border-dashed border-slate-300 bg-slate-50/50 hover:bg-slate-50'
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="font-bold text-slate-800 flex items-center gap-1.5">
+                            <span className="w-5 h-5 rounded-full bg-red-100 text-red-900 font-bold flex items-center justify-center text-[10px]">3</span>
+                            <span>Pas Photo Formal (Latar Merah / Biru) <span className="text-rose-500">*</span></span>
+                          </label>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            docPasPhoto ? 'bg-emerald-100 text-emerald-800 font-bold' : 'bg-slate-200 text-slate-600'
+                          }`}>
+                            {docPasPhoto ? '✓ Terunggah' : 'Wajib'}
+                          </span>
+                        </div>
+
+                        {docPasPhoto ? (
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-3 bg-white p-2.5 rounded-lg border border-emerald-200">
+                              <div className="w-14 h-10 rounded bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
+                                {docPasPhoto.fileUrl && docPasPhoto.fileUrl.startsWith('data:image') ? (
+                                  <img src={docPasPhoto.fileUrl} alt="Preview Foto" className="w-full h-full object-cover" />
+                                ) : (
+                                  <ImageIcon className="w-5 h-5 text-red-700" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-bold text-slate-800 truncate text-[11px]">{docPasPhoto.namaFile}</p>
+                                <p className="text-[10px] text-slate-500">{docPasPhoto.fileSize} • Foto Formal</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setPreviewDocModal({ title: 'Pas Photo Formal (Foto Resmi)', doc: docPasPhoto })}
+                                className="flex-1 py-1.5 px-2 bg-[#002B66] text-white hover:bg-[#001D45] rounded-lg font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer"
+                              >
+                                <Eye className="w-3 h-3 text-[#FDB913]" />
+                                <span>Pratinjau Foto</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveDoc('pas_photo')}
+                                className="p-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg border border-rose-200 cursor-pointer"
+                                title="Hapus Pas Photo"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <label className="flex flex-col items-center justify-center py-4 px-2 border border-slate-300 rounded-lg bg-white hover:bg-slate-50 cursor-pointer transition-colors text-center group">
+                              <Upload className="w-6 h-6 text-slate-400 group-hover:text-[#002B66] transition-colors mb-1" />
+                              <span className="font-bold text-slate-700 text-xs">Pilih Pas Photo (Ukuran 4x6 / 3x4)</span>
+                              <span className="text-[10px] text-slate-400 mt-0.5">Format: JPG, PNG (Maks. 5MB)</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => handleFileUpload(e, 'pas_photo')}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 4. Upload Ijazah Terakhir */}
+                      <div className={`p-4 rounded-xl border-2 transition-all ${
+                        docIjazah ? 'border-emerald-300 bg-emerald-50/40' : 'border-dashed border-slate-300 bg-slate-50/50 hover:bg-slate-50'
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="font-bold text-slate-800 flex items-center gap-1.5">
+                            <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-900 font-bold flex items-center justify-center text-[10px]">4</span>
+                            <span>Ijazah Terakhir ({pendidikanTerakhir}) <span className="text-rose-500">*</span></span>
+                          </label>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            docIjazah ? 'bg-emerald-100 text-emerald-800 font-bold' : 'bg-slate-200 text-slate-600'
+                          }`}>
+                            {docIjazah ? '✓ Terunggah' : 'Wajib'}
+                          </span>
+                        </div>
+
+                        {docIjazah ? (
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-3 bg-white p-2.5 rounded-lg border border-emerald-200">
+                              <div className="w-14 h-10 rounded bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
+                                {docIjazah.fileUrl && docIjazah.fileUrl.startsWith('data:image') ? (
+                                  <img src={docIjazah.fileUrl} alt="Preview Ijazah" className="w-full h-full object-cover" />
+                                ) : (
+                                  <GraduationCap className="w-5 h-5 text-emerald-800" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-bold text-slate-800 truncate text-[11px]">{docIjazah.namaFile}</p>
+                                <p className="text-[10px] text-slate-500">{docIjazah.fileSize} • Scan Ijazah</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setPreviewDocModal({ title: `Ijazah Terakhir (${pendidikanTerakhir})`, doc: docIjazah })}
+                                className="flex-1 py-1.5 px-2 bg-[#002B66] text-white hover:bg-[#001D45] rounded-lg font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer"
+                              >
+                                <Eye className="w-3 h-3 text-[#FDB913]" />
+                                <span>Pratinjau Ijazah</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveDoc('ijazah')}
+                                className="p-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg border border-rose-200 cursor-pointer"
+                                title="Hapus berkas Ijazah"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <label className="flex flex-col items-center justify-center py-4 px-2 border border-slate-300 rounded-lg bg-white hover:bg-slate-50 cursor-pointer transition-colors text-center group">
+                              <Upload className="w-6 h-6 text-slate-400 group-hover:text-[#002B66] transition-colors mb-1" />
+                              <span className="font-bold text-slate-700 text-xs">Pilih File Scan Ijazah Asli</span>
+                              <span className="text-[10px] text-slate-400 mt-0.5">Format: JPG, PNG, PDF (Maks. 5MB)</span>
+                              <input
+                                type="file"
+                                accept="image/*,application/pdf"
+                                onChange={(e) => handleFileUpload(e, 'ijazah')}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl flex items-start gap-2 text-xs text-blue-900">
+                      <ShieldCheck className="w-4 h-4 text-[#002B66] shrink-0 mt-0.5" />
+                      <p className="text-[11px] leading-relaxed">
+                        Seluruh berkas dokumen yang diunggah akan dienkripsi dan diproses verifikasi oleh <strong>Administrator DPNG</strong> dan <strong>PIC Koordinator Program</strong> sebelum status pendaftaran dinyatakan aktif.
+                      </p>
+                    </div>
+                  </div>
+
                   {/* Persetujuan Terms */}
                   <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                     <label className="flex items-start gap-3 cursor-pointer text-xs">
@@ -1092,53 +1542,151 @@ export const PublicRegistrationView: React.FC<PublicRegistrationViewProps> = ({
               </div>
             ) : (
               <div className="space-y-4">
-                {myRegistrations.map((p) => (
-                  <div
-                    key={p.id}
-                    className="p-5 rounded-xl border border-slate-200 hover:border-blue-300 bg-white transition-all shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-blue-50 text-[#002B66] border border-blue-200">
-                          {p.nomorRegistrasi || p.id}
-                        </span>
-                        <span className="text-xs font-bold text-slate-700">
-                          {p.kategoriProgram}
-                        </span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          p.statusPeserta === 'Terdaftar' ? 'bg-amber-100 text-amber-800' :
-                          p.statusPeserta === 'Aktif' ? 'bg-blue-100 text-blue-800' :
-                          p.statusPeserta === 'Lulus' ? 'bg-emerald-100 text-emerald-800' :
-                          'bg-slate-100 text-slate-800'
-                        }`}>
-                          {p.statusPeserta}
-                        </span>
+                {myRegistrations.map((p) => {
+                  const verifStatus = p.statusVerifikasi || 'Menunggu Verifikasi';
+                  const docKtpItem = p.dokumen?.ktp;
+                  const docKkItem = p.dokumen?.kartuKeluarga;
+                  const docPhotoItem = p.dokumen?.pasPhoto;
+                  const docIjazahItem = p.dokumen?.ijazahTerakhir;
+
+                  return (
+                    <div
+                      key={p.id}
+                      className="p-5 rounded-xl border border-slate-200 hover:border-blue-300 bg-white transition-all shadow-xs flex flex-col gap-4"
+                    >
+                      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                        <div className="space-y-1.5 flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-blue-50 text-[#002B66] border border-blue-200">
+                              {p.nomorRegistrasi || p.id}
+                            </span>
+                            <span className="text-xs font-bold text-slate-700">
+                              {p.kategoriProgram}
+                            </span>
+                            {/* Verification Status Badge */}
+                            <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
+                              verifStatus === 'Terverifikasi'
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : verifStatus === 'Perlu Perbaikan'
+                                ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                : verifStatus === 'Ditolak'
+                                ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                                : 'bg-blue-100 text-blue-800 border border-blue-300'
+                            }`}>
+                              <ShieldCheck className="w-3 h-3" />
+                              <span>{verifStatus}</span>
+                            </span>
+                          </div>
+
+                          <h4 className="font-bold text-base text-slate-900">
+                            {p.namaProgram}
+                          </h4>
+
+                          <p className="text-xs text-slate-500">
+                            Batch: <strong>{p.angkatanBatch} ({p.tahun})</strong> • Instansi: <strong>{p.instansi}</strong> • Tgl Daftar: <strong>{p.createdAt?.substring(0, 10) || '-'}</strong>
+                          </p>
+
+                          {/* Verification Notes from Admin / PIC */}
+                          {p.catatanVerifikasi && (
+                            <div className="mt-2 p-2.5 rounded-lg bg-amber-50/80 border border-amber-200 text-xs text-amber-900 flex items-start gap-2">
+                              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                              <div>
+                                <span className="font-bold">Catatan Tim Verifikator ({p.verifikatorNama || 'Admin / PIC'}):</span>
+                                <p className="italic mt-0.5">&ldquo;{p.catatanVerifikasi}&rdquo;</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0 self-end md:self-start">
+                          {verifStatus === 'Perlu Perbaikan' && (
+                            <button
+                              type="button"
+                              onClick={() => setRepairPesertaTarget(p)}
+                              className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                            >
+                              <Upload className="w-3.5 h-3.5" />
+                              <span>Perbaiki Berkas</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRegisteredResult(p);
+                              setActiveSubTab('form');
+                            }}
+                            className="px-3.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#002B66] text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer border border-blue-200"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                            <span>Cetak Bukti</span>
+                          </button>
+                        </div>
                       </div>
 
-                      <h4 className="font-bold text-base text-slate-900">
-                        {p.namaProgram}
-                      </h4>
+                      {/* Document Attachment Chips */}
+                      <div className="pt-3 border-t border-slate-100 flex items-center gap-2 flex-wrap text-[11px]">
+                        <span className="font-bold text-slate-400 uppercase text-[10px]">Dokumen Terlampir:</span>
+                        
+                        {docKtpItem ? (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewDocModal({ title: 'KTP (Kartu Tanda Penduduk)', doc: docKtpItem })}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-[#002B66] rounded-md border border-slate-200 cursor-pointer transition-colors"
+                          >
+                            <FileText className="w-3 h-3 text-[#002B66]" />
+                            <span>KTP: {docKtpItem.namaFile}</span>
+                            <Eye className="w-3 h-3 text-slate-400 ml-0.5" />
+                          </button>
+                        ) : (
+                          <span className="px-2 py-0.5 bg-slate-100 text-slate-400 rounded text-[10px]">KTP: -</span>
+                        )}
 
-                      <p className="text-xs text-slate-500">
-                        Batch: <strong>{p.angkatanBatch} ({p.tahun})</strong> • Instansi: <strong>{p.instansi}</strong> • Tgl Daftar: <strong>{p.createdAt?.substring(0, 10) || '-'}</strong>
-                      </p>
-                    </div>
+                        {docKkItem ? (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewDocModal({ title: 'Kartu Keluarga (KK)', doc: docKkItem })}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-[#002B66] rounded-md border border-slate-200 cursor-pointer transition-colors"
+                          >
+                            <FileText className="w-3 h-3 text-purple-700" />
+                            <span>KK: {docKkItem.namaFile}</span>
+                            <Eye className="w-3 h-3 text-slate-400 ml-0.5" />
+                          </button>
+                        ) : (
+                          <span className="px-2 py-0.5 bg-slate-100 text-slate-400 rounded text-[10px]">KK: -</span>
+                        )}
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setRegisteredResult(p);
-                          setActiveSubTab('form');
-                        }}
-                        className="px-3.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#002B66] text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer border border-blue-200"
-                      >
-                        <Printer className="w-3.5 h-3.5" />
-                        <span>Cetak Bukti</span>
-                      </button>
+                        {docPhotoItem ? (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewDocModal({ title: 'Pas Photo Formal', doc: docPhotoItem })}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-[#002B66] rounded-md border border-slate-200 cursor-pointer transition-colors"
+                          >
+                            <ImageIcon className="w-3 h-3 text-rose-600" />
+                            <span>Pas Photo: {docPhotoItem.namaFile}</span>
+                            <Eye className="w-3 h-3 text-slate-400 ml-0.5" />
+                          </button>
+                        ) : (
+                          <span className="px-2 py-0.5 bg-slate-100 text-slate-400 rounded text-[10px]">Foto: -</span>
+                        )}
+
+                        {docIjazahItem ? (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewDocModal({ title: 'Ijazah Terakhir', doc: docIjazahItem })}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-[#002B66] rounded-md border border-slate-200 cursor-pointer transition-colors"
+                          >
+                            <GraduationCap className="w-3 h-3 text-emerald-700" />
+                            <span>Ijazah: {docIjazahItem.namaFile}</span>
+                            <Eye className="w-3 h-3 text-slate-400 ml-0.5" />
+                          </button>
+                        ) : (
+                          <span className="px-2 py-0.5 bg-slate-100 text-slate-400 rounded text-[10px]">Ijazah: -</span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1254,6 +1802,290 @@ export const PublicRegistrationView: React.FC<PublicRegistrationViewProps> = ({
                   <span>Gunakan Akun Ini & Lanjutkan</span>
                 </button>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox / Document Preview Modal */}
+      {previewDocModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-[70] animate-in fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
+            <div className="p-4 bg-[#002B66] text-white flex items-center justify-between">
+              <div>
+                <h4 className="font-bold text-sm">{previewDocModal.title}</h4>
+                <p className="text-[11px] text-amber-200 font-mono truncate max-w-md">
+                  {previewDocModal.doc.namaFile} • {previewDocModal.doc.fileSize || 'Ukuran Standar'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {previewDocModal.doc.fileUrl && (
+                  <a
+                    href={previewDocModal.doc.fileUrl}
+                    download={previewDocModal.doc.namaFile}
+                    className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors cursor-pointer"
+                    title="Unduh Berkas"
+                  >
+                    <Download className="w-4 h-4" />
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setPreviewDocModal(null)}
+                  className="p-1.5 text-white/70 hover:text-white rounded-lg hover:bg-white/10 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 overflow-auto flex-1 flex items-center justify-center bg-slate-900/10 min-h-[300px]">
+              {previewDocModal.doc.fileUrl ? (
+                previewDocModal.doc.fileUrl.startsWith('data:image') || previewDocModal.doc.namaFile.match(/\.(jpg|jpeg|png|webp|gif)$/i) ? (
+                  <img
+                    src={previewDocModal.doc.fileUrl}
+                    alt={previewDocModal.title}
+                    className="max-w-full max-h-[60vh] object-contain rounded-lg shadow-md border border-slate-200 bg-white"
+                  />
+                ) : (
+                  <div className="text-center p-8 bg-white rounded-xl shadow-xs border border-slate-200 space-y-3">
+                    <FileText className="w-16 h-16 text-[#002B66] mx-auto" />
+                    <div>
+                      <h5 className="font-bold text-slate-800 text-sm">{previewDocModal.doc.namaFile}</h5>
+                      <p className="text-xs text-slate-500 mt-1">Dokumen format PDF / Dokumen Resmi Terlampir</p>
+                    </div>
+                    <a
+                      href={previewDocModal.doc.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#002B66] text-white rounded-lg text-xs font-bold shadow-xs hover:bg-[#001D45]"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-[#FDB913]" />
+                      <span>Buka Dokumen PDF di Tab Baru</span>
+                    </a>
+                  </div>
+                )
+              ) : (
+                <div className="text-center p-6 text-slate-400">Berkas tidak memiliki data preview</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Perbaikan Berkas Pendaftaran */}
+      {repairPesertaTarget && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-[70] animate-in fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-slate-200">
+            <div className="p-4 bg-amber-500 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-white" />
+                <div>
+                  <h4 className="font-bold text-sm">Unggah Perbaikan Berkas Dokumen</h4>
+                  <p className="text-[11px] text-amber-100">{repairPesertaTarget.namaProgram}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRepairPesertaTarget(null)}
+                className="text-white/80 hover:text-white p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-4 text-xs">
+              {repairPesertaTarget.catatanVerifikasi && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900">
+                  <span className="font-bold block text-[11px] text-amber-800 uppercase">Catatan Verifikator:</span>
+                  <p className="mt-0.5 italic text-xs">&ldquo;{repairPesertaTarget.catatanVerifikasi}&rdquo;</p>
+                </div>
+              )}
+
+              <p className="text-slate-600">
+                Silakan pilih berkas pengganti untuk dokumen yang perlu diperbaiki. Setelah diunggah, status berkas Anda akan kembali dialihkan ke antrean <strong>Menunggu Verifikasi</strong>.
+              </p>
+
+              <div className="space-y-3">
+                {/* Ganti KTP */}
+                <div className="p-3 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-between gap-3">
+                  <div>
+                    <span className="font-bold text-slate-800 block text-xs">KTP (Kartu Tanda Penduduk)</span>
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      {repairPesertaTarget.dokumen?.ktp?.namaFile || 'Belum ada'}
+                    </span>
+                  </div>
+                  <label className="px-3 py-1.5 bg-[#002B66] text-white hover:bg-[#001D45] rounded-lg font-bold text-xs cursor-pointer">
+                    <span>Ganti File</span>
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          const docItem: DokumenPendaftaranItem = {
+                            namaFile: file.name,
+                            tipeDokumen: 'ktp',
+                            fileUrl: ev.target?.result as string,
+                            fileSize: `${Math.round(file.size / 1024)} KB`,
+                            uploadedAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
+                            statusVerifikasiDokumen: 'Menunggu'
+                          };
+                          setRepairPesertaTarget(prev => prev ? {
+                            ...prev,
+                            dokumen: { ...(prev.dokumen || {}), ktp: docItem }
+                          } : null);
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {/* Ganti KK */}
+                <div className="p-3 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-between gap-3">
+                  <div>
+                    <span className="font-bold text-slate-800 block text-xs">Kartu Keluarga (KK)</span>
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      {repairPesertaTarget.dokumen?.kartuKeluarga?.namaFile || 'Belum ada'}
+                    </span>
+                  </div>
+                  <label className="px-3 py-1.5 bg-[#002B66] text-white hover:bg-[#001D45] rounded-lg font-bold text-xs cursor-pointer">
+                    <span>Ganti File</span>
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          const docItem: DokumenPendaftaranItem = {
+                            namaFile: file.name,
+                            tipeDokumen: 'kk',
+                            fileUrl: ev.target?.result as string,
+                            fileSize: `${Math.round(file.size / 1024)} KB`,
+                            uploadedAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
+                            statusVerifikasiDokumen: 'Menunggu'
+                          };
+                          setRepairPesertaTarget(prev => prev ? {
+                            ...prev,
+                            dokumen: { ...(prev.dokumen || {}), kartuKeluarga: docItem }
+                          } : null);
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {/* Ganti Pas Photo */}
+                <div className="p-3 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-between gap-3">
+                  <div>
+                    <span className="font-bold text-slate-800 block text-xs">Pas Photo Formal</span>
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      {repairPesertaTarget.dokumen?.pasPhoto?.namaFile || 'Belum ada'}
+                    </span>
+                  </div>
+                  <label className="px-3 py-1.5 bg-[#002B66] text-white hover:bg-[#001D45] rounded-lg font-bold text-xs cursor-pointer">
+                    <span>Ganti File</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          const docItem: DokumenPendaftaranItem = {
+                            namaFile: file.name,
+                            tipeDokumen: 'pas_photo',
+                            fileUrl: ev.target?.result as string,
+                            fileSize: `${Math.round(file.size / 1024)} KB`,
+                            uploadedAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
+                            statusVerifikasiDokumen: 'Menunggu'
+                          };
+                          setRepairPesertaTarget(prev => prev ? {
+                            ...prev,
+                            dokumen: { ...(prev.dokumen || {}), pasPhoto: docItem }
+                          } : null);
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {/* Ganti Ijazah */}
+                <div className="p-3 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-between gap-3">
+                  <div>
+                    <span className="font-bold text-slate-800 block text-xs">Ijazah Terakhir</span>
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      {repairPesertaTarget.dokumen?.ijazahTerakhir?.namaFile || 'Belum ada'}
+                    </span>
+                  </div>
+                  <label className="px-3 py-1.5 bg-[#002B66] text-white hover:bg-[#001D45] rounded-lg font-bold text-xs cursor-pointer">
+                    <span>Ganti File</span>
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          const docItem: DokumenPendaftaranItem = {
+                            namaFile: file.name,
+                            tipeDokumen: 'ijazah',
+                            fileUrl: ev.target?.result as string,
+                            fileSize: `${Math.round(file.size / 1024)} KB`,
+                            uploadedAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
+                            statusVerifikasiDokumen: 'Menunggu'
+                          };
+                          setRepairPesertaTarget(prev => prev ? {
+                            ...prev,
+                            dokumen: { ...(prev.dokumen || {}), ijazahTerakhir: docItem }
+                          } : null);
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRepairPesertaTarget(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!repairPesertaTarget) return;
+                    updatePeserta(repairPesertaTarget.id, {
+                      dokumen: repairPesertaTarget.dokumen,
+                      statusVerifikasi: 'Menunggu Verifikasi',
+                      catatanVerifikasi: 'Peserta telah mengunggah perbaikan berkas dokumen pada ' + new Date().toLocaleDateString('id-ID')
+                    });
+                    if (onRefreshData) onRefreshData();
+                    setRepairPesertaTarget(null);
+                  }}
+                  className="px-5 py-2 bg-[#002B66] hover:bg-[#001D45] text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check className="w-3.5 h-3.5 text-[#FDB913]" />
+                  <span>Kirimkan Perbaikan Berkas</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

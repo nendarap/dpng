@@ -3,7 +3,8 @@ import {
   AdvancedSearchFilter, UserRole, PicProgram, EduventureBooking,
   GroupAkun, MenuPrivilege, AppMenuItemDef, AppThemeId, LoginSettings,
   SimpendikBackupPayload, SimpendikBackupData, SimpendikBackupSummary,
-  BackupSnapshotItem, RestoreMode, Pegawai, LoginSession, SessionConfig
+  BackupSnapshotItem, RestoreMode, Pegawai, LoginSession, SessionConfig,
+  StatusVerifikasiPendaftaran
 } from '../types';
 import { 
   DEFAULT_KATEGORI, DEFAULT_PROGRAM, DEFAULT_PESERTA, 
@@ -1450,6 +1451,95 @@ export function updatePeserta(id: string, data: Partial<Peserta>): { success: bo
   writeLog('Edit Peserta', 'PESERTA', id, `Update data peserta ${updated.namaLengkap}`);
 
   return { success: true, message: 'Data peserta berhasil diperbarui', data: updated };
+}
+
+export function verifyPesertaPendaftaran(
+  id: string,
+  statusVerifikasi: StatusVerifikasiPendaftaran,
+  catatanVerifikasi: string,
+  verifikatorNama: string,
+  verifikatorRole: string
+): { success: boolean; message: string; data?: Peserta } {
+  const list = getPeserta();
+  const idx = list.findIndex(p => p.id === id);
+  if (idx === -1) {
+    return { success: false, message: 'Data peserta tidak ditemukan' };
+  }
+
+  const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  const current = list[idx];
+  const updated: Peserta = {
+    ...current,
+    statusVerifikasi,
+    tanggalVerifikasi: now,
+    verifikatorNama,
+    verifikatorRole,
+    catatanVerifikasi: catatanVerifikasi.trim(),
+    statusPeserta: statusVerifikasi === 'Terverifikasi' ? 'Aktif' : current.statusPeserta,
+    updatedAt: now,
+    updatedBy: verifikatorNama
+  };
+
+  list[idx] = updated;
+  localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(list));
+  writeLog(
+    'Verifikasi Berkas',
+    'PESERTA',
+    id,
+    `Verifikasi peserta ${updated.namaLengkap} diubah ke "${statusVerifikasi}" oleh ${verifikatorNama} (${verifikatorRole})`
+  );
+
+  return { 
+    success: true, 
+    message: `Status verifikasi berkas ${updated.namaLengkap} berhasil diperbarui menjadi "${statusVerifikasi}"`, 
+    data: updated 
+  };
+}
+
+export function verifyMultiplePeserta(
+  ids: string[],
+  statusVerifikasi: StatusVerifikasiPendaftaran,
+  verifikatorNama: string,
+  verifikatorRole: string
+): { success: boolean; count: number; message: string } {
+  if (!ids || ids.length === 0) {
+    return { success: false, count: 0, message: 'Tidak ada data peserta yang dipilih' };
+  }
+
+  const list = getPeserta();
+  const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  let updatedCount = 0;
+
+  const updatedList = list.map(p => {
+    if (ids.includes(p.id)) {
+      updatedCount++;
+      return {
+        ...p,
+        statusVerifikasi,
+        tanggalVerifikasi: now,
+        verifikatorNama,
+        verifikatorRole,
+        statusPeserta: statusVerifikasi === 'Terverifikasi' ? 'Aktif' : p.statusPeserta,
+        updatedAt: now,
+        updatedBy: verifikatorNama
+      };
+    }
+    return p;
+  });
+
+  localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(updatedList));
+  writeLog(
+    'Bulk Verifikasi',
+    'PESERTA',
+    'MULTIPLE',
+    `Verifikasi massal ${updatedCount} berkas peserta diubah menjadi "${statusVerifikasi}" oleh ${verifikatorNama}`
+  );
+
+  return {
+    success: true,
+    count: updatedCount,
+    message: `${updatedCount} berkas peserta berhasil diperbarui ke status "${statusVerifikasi}"`
+  };
 }
 
 export function deletePeserta(id: string): { success: boolean; message: string } {

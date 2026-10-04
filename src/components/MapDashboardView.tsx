@@ -26,6 +26,9 @@ interface MapDashboardViewProps {
   initialInstansi?: string;
   isEmbedded?: boolean;
   onBackToTable?: () => void;
+  isPublicView?: boolean;
+  onNavigateToDashboard?: () => void;
+  onNavigateToDaftar?: () => void;
 }
 
 interface LocationCluster {
@@ -53,6 +56,9 @@ export const MapDashboardView: React.FC<MapDashboardViewProps> = ({
   initialInstansi,
   isEmbedded = false,
   onBackToTable,
+  isPublicView = false,
+  onNavigateToDashboard,
+  onNavigateToDaftar,
 }) => {
   // Map element ref & Leaflet instance ref
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -644,8 +650,14 @@ export const MapDashboardView: React.FC<MapDashboardViewProps> = ({
           <div className="border-l border-slate-200 pl-3.5">
             <div className="flex items-center gap-2 mb-0.5 flex-wrap">
               <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                Peta Sebaran Peserta Berdasarkan Instansi
+                {isPublicView ? 'Peta Sebaran Mitra & Peserta Publik' : 'Peta Sebaran Peserta Berdasarkan Instansi'}
               </h1>
+              {isPublicView && (
+                <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                  <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Akses Publik (View Only)</span>
+                </span>
+              )}
               <span className="bg-[#002B66] text-[#FDB913] text-xs font-bold px-2.5 py-0.5 rounded-full border border-blue-900 flex items-center gap-1">
                 <Building2 className="w-3.5 h-3.5" />
                 {uniqueInstansiCount} Instansi Mitra
@@ -656,13 +668,36 @@ export const MapDashboardView: React.FC<MapDashboardViewProps> = ({
               </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 max-w-3xl">
-              Visualisasi sebaran spasial institusi, universitas, rumah sakit, kementerian, dan instansi asal peserta program Pendidikan Non Gelar Universitas Padjadjaran.
+              {isPublicView
+                ? 'Visualisasi spasial sebaran institusi mitra, rumah sakit, kementerian, BUMN, dan perusahaan asal peserta program Pendidikan Non Gelar Universitas Padjadjaran.'
+                : 'Visualisasi sebaran spasial institusi, universitas, rumah sakit, kementerian, dan instansi asal peserta program Pendidikan Non Gelar Universitas Padjadjaran.'}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
-          {isEmbedded && onBackToTable && (
+          {onNavigateToDashboard && (
+            <button
+              onClick={onNavigateToDashboard}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-[#002B66] rounded-xl text-xs font-bold transition-all cursor-pointer border border-blue-200"
+              title="Buka Dashboard Statistik Publik"
+            >
+              <span>📊 Dashboard Statistik</span>
+            </button>
+          )}
+
+          {onNavigateToDaftar && (
+            <button
+              onClick={onNavigateToDaftar}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-[#FDB913] hover:bg-amber-400 text-[#002B66] rounded-xl text-xs font-black transition-all cursor-pointer shadow-xs"
+              title="Buka Formulir Pendaftaran Peserta"
+            >
+              <GraduationCap className="w-4 h-4 text-[#002B66]" />
+              <span>Daftar Pelatihan</span>
+            </button>
+          )}
+
+          {isEmbedded && onBackToTable && !isPublicView && (
             <button
               onClick={onBackToTable}
               className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer border border-slate-200"
@@ -681,13 +716,15 @@ export const MapDashboardView: React.FC<MapDashboardViewProps> = ({
             <span>Tanya Google Maps AI</span>
           </button>
 
-          <button
-            onClick={() => onNavigateToPeserta()}
-            className="flex items-center gap-2 px-3.5 py-2 bg-[#002B66] hover:bg-[#073877] text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
-          >
-            <Users className="w-4 h-4 text-[#FDB913]" />
-            <span>Tabel Data Lengkap</span>
-          </button>
+          {!isPublicView && (
+            <button
+              onClick={() => onNavigateToPeserta()}
+              className="flex items-center gap-2 px-3.5 py-2 bg-[#002B66] hover:bg-[#073877] text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+            >
+              <Users className="w-4 h-4 text-[#FDB913]" />
+              <span>Tabel Data Lengkap</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1126,7 +1163,7 @@ export const MapDashboardView: React.FC<MapDashboardViewProps> = ({
                   className="w-full py-2 px-3 bg-[#002B66] hover:bg-[#002252] text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer"
                 >
                   <Users className="w-3.5 h-3.5 text-[#FDB913]" />
-                  <span>Lihat di Tabel Peserta (Filter Instansi Ini)</span>
+                  <span>{isPublicView ? 'Lihat Daftar Peserta Instansi Ini (View Only)' : 'Lihat di Tabel Peserta (Filter Instansi Ini)'}</span>
                 </button>
 
                 <button

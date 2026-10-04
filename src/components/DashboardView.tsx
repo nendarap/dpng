@@ -3,7 +3,7 @@ import {
   Users, UserCheck, Clock, Award, XCircle, 
   GraduationCap, Layers, Calendar, Filter, RotateCcw,
   Building2, MapPin, ArrowUpRight, Map, Compass, ChevronRight,
-  PieChart as PieChartIcon, BarChart3, TrendingUp
+  PieChart as PieChartIcon, BarChart3, TrendingUp, ShieldCheck, ArrowRight, Eye
 } from 'lucide-react';
 import { 
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RechartsTooltip,
@@ -23,6 +23,7 @@ interface DashboardViewProps {
   onNavigateToMap?: () => void;
   onNavigateToEduventure?: (targetTab?: 'eduventure' | 'eduventure_dashboard') => void;
   onNavigateToKategori?: () => void;
+  isPublicView?: boolean;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -36,6 +37,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onNavigateToMap,
   onNavigateToEduventure,
   onNavigateToKategori,
+  isPublicView = false,
 }) => {
   // Filter state
   const [filterTahun, setFilterTahun] = useState<string>('ALL');
@@ -70,6 +72,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // Calculations for 8 Stat Cards
   const currentYear = new Date().getFullYear();
   const totalPeserta = filteredPeserta.length;
+  const pendingVerifCount = useMemo(() => {
+    return pesertaList.filter(p => (p.statusVerifikasi || 'Menunggu Verifikasi') === 'Menunggu Verifikasi').length;
+  }, [pesertaList]);
+  const perbaikanVerifCount = useMemo(() => {
+    return pesertaList.filter(p => p.statusVerifikasi === 'Perlu Perbaikan').length;
+  }, [pesertaList]);
   const pesertaAktif = filteredPeserta.filter(p => p.statusPeserta === 'Aktif').length;
   const pesertaSelesai = filteredPeserta.filter(p => p.statusPeserta === 'Selesai').length;
   const pesertaLulus = filteredPeserta.filter(p => p.statusPeserta === 'Lulus' || p.statusKelulusan === 'Lulus').length;
@@ -224,19 +232,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <UnpadLogo variant="color" size="sm" />
           <div className="border-l border-slate-200 pl-3.5">
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-extrabold text-[#002B66]">Dashboard Statistik Peserta</h1>
-              <span className="text-[11px] font-bold bg-[#FDB913]/20 text-[#002B66] px-2 py-0.5 rounded-full border border-[#FDB913]/40">
-                Live Google Sheets
-              </span>
+              <h1 className="text-xl font-extrabold text-[#002B66]">
+                {isPublicView ? 'Dashboard Eksekutif & Statistik Publik' : 'Dashboard Statistik Peserta'}
+              </h1>
+              {isPublicView ? (
+                <span className="text-[11px] font-bold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                  <Eye className="w-3 h-3 text-emerald-600" />
+                  <span>Akses Publik (View Only)</span>
+                </span>
+              ) : (
+                <span className="text-[11px] font-bold bg-[#FDB913]/20 text-[#002B66] px-2 py-0.5 rounded-full border border-[#FDB913]/40">
+                  Live Google Sheets
+                </span>
+              )}
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Ringkasan data real-time Pendidikan Non Gelar Universitas Padjadjaran
+              {isPublicView 
+                ? 'Ringkasan data capaian dan sebaran Pendidikan Non Gelar Universitas Padjadjaran terbuka untuk publik.'
+                : 'Ringkasan data real-time Pendidikan Non Gelar Universitas Padjadjaran'}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
-          {onNavigateToEduventure && (
+          {!isPublicView && onNavigateToEduventure && (
             <button
               id="btn-quick-eduventure"
               type="button"
@@ -248,25 +267,71 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <span>Modul Eduventure</span>
             </button>
           )}
+
           {onNavigateToMap && (
             <button
               id="btn-quick-map"
               onClick={onNavigateToMap}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-xs shadow-xs transition-colors cursor-pointer"
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 bg-[#FDB913] hover:bg-amber-400 text-[#002B66] font-black rounded-lg text-xs shadow-xs transition-colors cursor-pointer"
+              title="Buka Peta Sebaran Mitra & Peserta Interaktif"
             >
-              <Map className="w-4 h-4 text-slate-900" />
-              <span>Peta Sebaran (Map)</span>
+              <Map className="w-4 h-4 text-[#002B66]" />
+              <span>Peta Sebaran Mitra</span>
             </button>
           )}
-          <button
-            id="btn-quick-tambah"
-            onClick={onNavigateToTambah}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 bg-[#002B66] hover:bg-[#083a7e] text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-          >
-            <span>+ Input Peserta Baru</span>
-          </button>
+
+          {isPublicView ? (
+            <button
+              id="btn-public-daftar"
+              onClick={onNavigateToTambah}
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-[#002B66] hover:bg-[#001D45] text-white rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
+            >
+              <GraduationCap className="w-4 h-4 text-[#FDB913]" />
+              <span>Daftar Pelatihan</span>
+            </button>
+          ) : (
+            <button
+              id="btn-quick-tambah"
+              onClick={onNavigateToTambah}
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 bg-[#002B66] hover:bg-[#083a7e] text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+            >
+              <span>+ Input Peserta Baru</span>
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Alert Banner: Verifikasi Dokumen Calon Peserta (Only for Admin/Staff, not in public view) */}
+      {!isPublicView && pendingVerifCount > 0 && (
+        <div className="bg-gradient-to-r from-amber-50 via-amber-100/60 to-blue-50 border border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 text-[#002B66] flex items-center justify-center font-black shadow-xs shrink-0">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-xs sm:text-sm font-black text-[#002B66] flex items-center gap-2">
+                <span>{pendingVerifCount} Calon Peserta Menunggu Verifikasi Dokumen</span>
+                <span className="text-[10px] bg-amber-200 text-amber-900 font-bold px-2 py-0.5 rounded-full">
+                  KTP • KK • Pas Photo • Ijasah
+                </span>
+              </h3>
+              <p className="text-[11px] text-slate-600 mt-0.5">
+                Admin atau PIC Program perlu memeriksa kelayakan berkas persyaratan pendaftaran.
+                {perbaikanVerifCount > 0 && ` (${perbaikanVerifCount} peserta dalam perbaikan)`}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onNavigateToPeserta({ statusVerifikasi: 'Menunggu Verifikasi' })}
+            className="flex items-center gap-1.5 px-4 py-2 bg-[#002B66] hover:bg-[#001D45] text-white rounded-xl text-xs font-bold shadow-xs transition-colors shrink-0 cursor-pointer"
+          >
+            <span>Verifikasi Berkas Sekarang</span>
+            <ArrowRight className="w-3.5 h-3.5 text-[#FDB913]" />
+          </button>
+        </div>
+      )}
 
       {/* 8 Metric Stat Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3">

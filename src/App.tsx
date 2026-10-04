@@ -24,6 +24,7 @@ import { GoogleSheetConnectionModal } from './components/GoogleSheetConnectionMo
 import { PegawaiView } from './components/PegawaiView';
 import { SessionManager } from './components/SessionManager';
 import { PublicRegistrationView } from './components/PublicRegistrationView';
+import { PublicPortalView } from './components/PublicPortalView';
 import { ShareRegistrationLinkModal } from './components/ShareRegistrationLinkModal';
 
 import { 
@@ -80,25 +81,44 @@ export default function App() {
   // Modal / Selection States
   const [detailPeserta, setDetailPeserta] = useState<Peserta | null>(null);
   const [editPeserta, setEditPeserta] = useState<Peserta | null>(null);
+  const [detailModalTab, setDetailModalTab] = useState<'biodata' | 'program' | 'dokumen' | 'cetak'>('biodata');
+  const [pesertaListInitialFilter, setPesertaListInitialFilter] = useState<{ statusVerifikasi?: string; statusPeserta?: string; instansi?: string } | null>(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
-  // Public Registration Mode State (accessible via ?mode=daftar or ?register=true or #daftar or Login page button)
-  const [isPublicRegistrationMode, setIsPublicRegistrationMode] = useState<boolean>(() => {
+  // Public Portal Mode State: 'dashboard' | 'peta' | 'daftar' | null
+  const [publicPortalMode, setPublicPortalMode] = useState<'dashboard' | 'peta' | 'daftar' | null>(() => {
     try {
       const params = new URLSearchParams(window.location.search);
-      return params.get('mode') === 'daftar' || params.get('register') === 'true' || window.location.hash === '#daftar';
+      const mode = params.get('mode') || params.get('view');
+      const hash = window.location.hash;
+      if (mode === 'peta' || mode === 'map' || hash === '#peta' || hash === '#map') {
+        return 'peta';
+      }
+      if (mode === 'daftar' || params.get('register') === 'true' || hash === '#daftar') {
+        return 'daftar';
+      }
+      if (mode === 'dashboard' || mode === 'publik' || mode === 'public' || hash === '#dashboard' || hash === '#publik') {
+        return 'dashboard';
+      }
     } catch {
-      return false;
+      // ignore
     }
+    return null;
   });
 
-  // Sync URL changes with public registration mode
+  // Sync URL changes with public portal mode
   useEffect(() => {
     const handleUrlChange = () => {
       try {
         const params = new URLSearchParams(window.location.search);
-        if (params.get('mode') === 'daftar' || params.get('register') === 'true' || window.location.hash === '#daftar') {
-          setIsPublicRegistrationMode(true);
+        const mode = params.get('mode') || params.get('view');
+        const hash = window.location.hash;
+        if (mode === 'peta' || mode === 'map' || hash === '#peta' || hash === '#map') {
+          setPublicPortalMode('peta');
+        } else if (mode === 'daftar' || params.get('register') === 'true' || hash === '#daftar') {
+          setPublicPortalMode('daftar');
+        } else if (mode === 'dashboard' || mode === 'publik' || mode === 'public' || hash === '#dashboard' || hash === '#publik') {
+          setPublicPortalMode('dashboard');
         }
       } catch {
         // ignore
@@ -466,19 +486,22 @@ export default function App() {
     setActiveTab('peserta');
   };
 
-  // Render Public Registration Portal if requested by public URL or button
-  if (isPublicRegistrationMode) {
+  // Render Public Portal (Dashboard, Map, or Registration in View Only mode) if requested by public URL or button
+  if (publicPortalMode !== null) {
     return (
       <>
-        <PublicRegistrationView
+        <PublicPortalView
           kategoriList={kategoriList}
           programList={programList}
           allPesertaList={pesertaList}
+          initialTab={publicPortalMode}
+          isLoggedIn={isLoggedIn}
           onBackToLogin={() => {
-            setIsPublicRegistrationMode(false);
+            setPublicPortalMode(null);
             try {
               const url = new URL(window.location.href);
               url.searchParams.delete('mode');
+              url.searchParams.delete('view');
               url.searchParams.delete('register');
               url.searchParams.delete('program');
               window.history.pushState({}, '', url.pathname);
@@ -523,7 +546,10 @@ export default function App() {
         <LoginView 
           onLoginSuccess={handleLoginSuccess} 
           loginSettings={settings.loginSettings} 
-          onOpenPublicRegistration={() => setIsPublicRegistrationMode(true)}
+          onOpenPublicRegistration={() => setPublicPortalMode('daftar')}
+          onOpenPublicDashboard={() => setPublicPortalMode('dashboard')}
+          onOpenPublicMap={() => setPublicPortalMode('peta')}
+          onOpenPublicPortal={(tab = 'dashboard') => setPublicPortalMode(tab)}
         />
         
         {/* Floating Toast Notification */}
@@ -571,6 +597,7 @@ export default function App() {
         onThemeChange={handleThemeChange}
         onShowToast={showToast}
         onOpenShareLinkModal={() => setIsShareModalOpen(true)}
+        onOpenPublicPortal={(tab) => setPublicPortalMode(tab || 'dashboard')}
       />
 
       {/* Background Session Manager (Countdown & Warning Modal) */}
@@ -602,6 +629,7 @@ export default function App() {
           onLogout={handleLogout}
           onOpenSheetModal={() => setIsSheetModalOpen(true)}
           currentTheme={currentTheme}
+          onOpenPublicPortal={(tab) => setPublicPortalMode(tab || 'dashboard')}
         />
 
         {/* Dynamic Center Stage */}
@@ -637,6 +665,11 @@ export default function App() {
                   programList={programList}
                   recentLogs={logs}
                   onNavigateToPeserta={(filters) => {
+                    if (filters?.statusVerifikasi) {
+                      setPesertaListInitialFilter({ statusVerifikasi: filters.statusVerifikasi });
+                    } else {
+                      setPesertaListInitialFilter(null);
+                    }
                     setActiveTab('peserta');
                   }}
                   onNavigateToTambah={() => {
@@ -667,7 +700,16 @@ export default function App() {
                   userRole={currentUser.role}
                   kategoriList={kategoriList}
                   programList={programList}
-                  onViewDetail={(p) => setDetailPeserta(p)}
+                  picList={picList}
+                  initialVerifFilter={pesertaListInitialFilter?.statusVerifikasi}
+                  onViewDetail={(p) => {
+                    setDetailModalTab('biodata');
+                    setDetailPeserta(p);
+                  }}
+                  onViewVerification={(p) => {
+                    setDetailModalTab('dokumen');
+                    setDetailPeserta(p);
+                  }}
                   onEditPeserta={(p) => {
                     setEditPeserta(p);
                     setActiveTab('tambah');
@@ -901,6 +943,8 @@ export default function App() {
         onClose={() => setDetailPeserta(null)}
         userRole={currentUser.role}
         picList={picList}
+        initialTab={detailModalTab}
+        onRefreshData={refreshAllData}
         onEdit={(p) => {
           setEditPeserta(p);
           setActiveTab('tambah');

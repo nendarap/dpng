@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Lock, Mail, Eye, EyeOff, ShieldCheck, ArrowRight, 
   CheckCircle2, AlertCircle, GraduationCap, Building2, Sparkles,
-  Megaphone, Info, AlertTriangle, Clock
+  Megaphone, Info, AlertTriangle, Clock, BarChart3, MapPin, Globe
 } from 'lucide-react';
 import { UserItem, LoginSettings } from '../types';
 import { loginUser } from '../services/storageService';
@@ -17,12 +17,18 @@ interface LoginViewProps {
   onLoginSuccess: (user: UserItem) => void;
   loginSettings?: LoginSettings;
   onOpenPublicRegistration?: () => void;
+  onOpenPublicDashboard?: () => void;
+  onOpenPublicMap?: () => void;
+  onOpenPublicPortal?: (initialTab?: 'dashboard' | 'peta' | 'daftar') => void;
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({ 
   onLoginSuccess,
   loginSettings = DEFAULT_LOGIN_SETTINGS,
-  onOpenPublicRegistration
+  onOpenPublicRegistration,
+  onOpenPublicDashboard,
+  onOpenPublicMap,
+  onOpenPublicPortal,
 }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,6 +37,19 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [sessionDurationMinutes, setSessionDurationMinutes] = useState<number>(60);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Helper to open portal tab
+  const handleOpenTab = (tab: 'dashboard' | 'peta' | 'daftar') => {
+    if (onOpenPublicPortal) {
+      onOpenPublicPortal(tab);
+    } else if (tab === 'dashboard' && onOpenPublicDashboard) {
+      onOpenPublicDashboard();
+    } else if (tab === 'peta' && onOpenPublicMap) {
+      onOpenPublicMap();
+    } else if (tab === 'daftar' && onOpenPublicRegistration) {
+      onOpenPublicRegistration();
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,9 +148,23 @@ export const LoginView: React.FC<LoginViewProps> = ({
           </div>
         </div>
 
-        <div className="hidden sm:flex items-center gap-2 text-xs text-slate-800 bg-white/95 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/40 shadow-md font-semibold">
-          <ShieldCheck className="w-4 h-4 text-emerald-600" />
-          <span>Sistem Akses Terproteksi</span>
+        <div className="flex items-center gap-2">
+          {(onOpenPublicPortal || onOpenPublicDashboard) && (
+            <button
+              type="button"
+              id="btn-top-public-portal"
+              onClick={() => handleOpenTab('dashboard')}
+              className="flex items-center gap-1.5 text-xs text-[#002B66] bg-[#FDB913] hover:bg-amber-400 px-3.5 py-1.5 rounded-xl shadow-md font-bold transition-all cursor-pointer"
+              title="Buka Portal Publik & Transparansi Data (View Only)"
+            >
+              <Eye className="w-3.5 h-3.5 text-[#002B66]" />
+              <span>Akses Publik (View Only)</span>
+            </button>
+          )}
+          <div className="hidden sm:flex items-center gap-2 text-xs text-slate-800 bg-white/95 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/40 shadow-md font-semibold">
+            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+            <span>Sistem Akses Terproteksi</span>
+          </div>
         </div>
       </header>
 
@@ -405,36 +438,96 @@ export const LoginView: React.FC<LoginViewProps> = ({
               </>
             )}
 
-            {/* Public Registration Link / Banner for Prospective Students */}
-            {onOpenPublicRegistration && (
-              <div className="mt-6 pt-5 border-t border-slate-200">
-                <div className="bg-gradient-to-r from-blue-50 to-amber-50/50 p-4 rounded-xl border border-blue-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-left">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[#002B66] text-[#FDB913] flex items-center justify-center shrink-0 shadow-xs font-bold">
-                      <GraduationCap className="w-5 h-5" />
+            {/* Public Access Section: Dashboard, Map, and Registration (View Only) */}
+            <div className="mt-6 pt-5 border-t border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-[#002B66]" />
+                  <span>Akses Publik Transparan (View Only)</span>
+                </span>
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold border border-emerald-300">
+                  Tanpa Login
+                </span>
+              </div>
+
+              {/* Quick Access Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* 1. Dashboard Publik */}
+                <button
+                  type="button"
+                  id="btn-login-open-dashboard"
+                  onClick={() => handleOpenTab('dashboard')}
+                  className="p-3 rounded-xl bg-blue-50/70 hover:bg-blue-100/80 border border-blue-200/80 text-left transition-all group cursor-pointer flex items-center justify-between"
+                  title="Lihat Dashboard Statistik Publik (View Only)"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-[#002B66] text-[#FDB913] flex items-center justify-center font-bold shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                      <BarChart3 className="w-4 h-4" />
                     </div>
-                    <div>
-                      <span className="font-extrabold text-xs text-[#002B66] block">
-                        Calon Peserta Pelatihan Non-Gelar?
+                    <div className="truncate">
+                      <span className="text-xs font-bold text-[#002B66] block truncate">
+                        Dashboard Statistik
                       </span>
-                      <p className="text-[11px] text-slate-600">
-                        Daftar program pelatihan, sertifikasi, & kursus menggunakan login Google.
-                      </p>
+                      <span className="text-[10px] text-slate-500 block truncate">
+                        Grafik & capaian publik
+                      </span>
                     </div>
                   </div>
+                  <ArrowRight className="w-3.5 h-3.5 text-blue-600 shrink-0 ml-1 group-hover:translate-x-0.5 transition-transform" />
+                </button>
 
-                  <button
-                    type="button"
-                    id="btn-open-public-reg"
-                    onClick={onOpenPublicRegistration}
-                    className="w-full sm:w-auto px-4 py-2 bg-[#002B66] hover:bg-[#001D45] text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
-                  >
-                    <span>Buka Pendaftaran</span>
-                    <ArrowRight className="w-3.5 h-3.5 text-[#FDB913]" />
-                  </button>
-                </div>
+                {/* 2. Peta Sebaran Mitra */}
+                <button
+                  type="button"
+                  id="btn-login-open-map"
+                  onClick={() => handleOpenTab('peta')}
+                  className="p-3 rounded-xl bg-amber-50/70 hover:bg-amber-100/80 border border-amber-200/80 text-left transition-all group cursor-pointer flex items-center justify-between"
+                  title="Lihat Peta Sebaran Mitra & Peserta (View Only)"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-[#FDB913] text-[#002B66] flex items-center justify-center font-bold shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                      <MapPin className="w-4 h-4" />
+                    </div>
+                    <div className="truncate">
+                      <span className="text-xs font-bold text-[#002B66] block truncate">
+                        Peta Sebaran Mitra
+                      </span>
+                      <span className="text-[10px] text-slate-500 block truncate">
+                        Sebaran spasial se-Indonesia
+                      </span>
+                    </div>
+                  </div>
+                  <ArrowRight className="w-3.5 h-3.5 text-amber-700 shrink-0 ml-1 group-hover:translate-x-0.5 transition-transform" />
+                </button>
               </div>
-            )}
+
+              {/* 3. Pendaftaran Peserta Online */}
+              <div className="bg-gradient-to-r from-blue-50 via-slate-50 to-amber-50/40 p-3 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-[#002B66] text-[#FDB913] flex items-center justify-center shrink-0">
+                    <GraduationCap className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-[#002B66] block">
+                      Calon Peserta Pelatihan Non-Gelar?
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">
+                      Daftar program pelatihan, sertifikasi, & kursus non-gelar Unpad.
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  id="btn-open-public-reg"
+                  onClick={() => handleOpenTab('daftar')}
+                  className="w-full sm:w-auto px-3.5 py-1.5 bg-[#002B66] hover:bg-[#001D45] text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer shrink-0"
+                >
+                  <span>Daftar Sekarang</span>
+                  <ArrowRight className="w-3 h-3 text-[#FDB913]" />
+                </button>
+              </div>
+            </div>
 
           </div>
         </div>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Menu, Shield, Database, RefreshCw, FileCode, CheckCircle2, 
-  UserCheck, LogOut, User, Camera, Palette, ChevronDown, Sparkles, Key, Share2
+  UserCheck, LogOut, User, Camera, Palette, ChevronDown, Sparkles, Key, Share2, Eye
 } from 'lucide-react';
 import { UserItem, UserRole, GroupAkun, AppThemeId } from '../types';
 import { UnpadLogo } from './UnpadLogo';
@@ -23,6 +23,7 @@ interface NavbarProps {
   onThemeChange?: (theme: AppThemeId) => void;
   onShowToast?: (msg: string, type?: 'success' | 'error') => void;
   onOpenShareLinkModal?: () => void;
+  onOpenPublicPortal?: (tab?: 'dashboard' | 'peta' | 'daftar') => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -39,6 +40,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onThemeChange = () => {},
   onShowToast = () => {},
   onOpenShareLinkModal,
+  onOpenPublicPortal,
 }) => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [profileModalTab, setProfileModalTab] = useState<'info' | 'password' | 'photo' | 'theme'>('info');
@@ -92,17 +94,32 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {/* Quick Share Public Registration Link Button */}
+            {/* Quick Public Portal (View Only) Preview Button */}
+            {onOpenPublicPortal && (
+              <button
+                type="button"
+                id="btn-navbar-public-portal"
+                onClick={() => onOpenPublicPortal('dashboard')}
+                className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-[#002B66] border border-amber-200 rounded-lg text-xs font-bold shadow-2xs transition-all cursor-pointer"
+                title="Lihat Tampilan Portal Publik (Dashboard & Peta View Only)"
+              >
+                <Eye className="w-3.5 h-3.5 text-[#002B66]" />
+                <span className="hidden xl:inline">Portal Publik (View Only)</span>
+                <span className="xl:hidden">Portal Publik</span>
+              </button>
+            )}
+
+            {/* Quick Share Public Links Button */}
             {onOpenShareLinkModal && (
               <button
                 type="button"
                 id="btn-navbar-share-link"
                 onClick={onOpenShareLinkModal}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#002B66] border border-blue-200 rounded-lg text-xs font-semibold shadow-2xs transition-all cursor-pointer"
-                title="Bagikan Tautan Pendaftaran Publik Peserta Non Gelar"
+                title="Bagikan Tautan Publik (Pendaftaran, Dashboard, & Peta)"
               >
                 <Share2 className="w-3.5 h-3.5 text-[#FDB913]" />
-                <span className="hidden xl:inline">Link Pendaftaran Publik</span>
+                <span className="hidden xl:inline">Bagikan Link Publik</span>
               </button>
             )}
 

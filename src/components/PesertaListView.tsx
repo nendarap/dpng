@@ -5,18 +5,20 @@ import {
   FileText, CheckSquare, Square, AlertTriangle,
   Upload, CheckCircle2, X, ChevronDown, Check,
   RefreshCw, FileSpreadsheet, Layers, Filter,
-  MapPin, Map as MapIcon, Building2, Users, Share2
+  MapPin, Map as MapIcon, Building2, Users, Share2,
+  ShieldCheck, Clock, FileCheck, Image as ImageIcon
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { Peserta, UserRole, Kategori, Program } from '../types';
+import { Peserta, UserRole, Kategori, Program, StatusVerifikasiPendaftaran, PicProgram } from '../types';
 import { PesertaImportModal } from './PesertaImportModal';
 import { MapDashboardView } from './MapDashboardView';
-import { deleteMultiplePeserta, updateMultiplePesertaStatus } from '../services/storageService';
+import { deleteMultiplePeserta, updateMultiplePesertaStatus, verifyMultiplePeserta } from '../services/storageService';
 
 interface PesertaListViewProps {
   pesertaList: Peserta[];
   userRole: UserRole;
   onViewDetail: (peserta: Peserta) => void;
+  onViewVerification?: (peserta: Peserta) => void;
   onEditPeserta: (peserta: Peserta) => void;
   onDeletePeserta: (id: string) => void;
   onDeleteMultiplePeserta?: (ids: string[]) => void;
@@ -26,6 +28,8 @@ interface PesertaListViewProps {
   onRefreshData?: () => void;
   kategoriList?: Kategori[];
   programList?: Program[];
+  picList?: PicProgram[];
+  initialVerifFilter?: string;
   onOpenShareLinkModal?: () => void;
 }
 
@@ -33,6 +37,7 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
   pesertaList,
   userRole,
   onViewDetail,
+  onViewVerification,
   onEditPeserta,
   onDeletePeserta,
   onDeleteMultiplePeserta,
@@ -42,10 +47,13 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
   onRefreshData,
   kategoriList = [],
   programList = [],
+  picList = [],
+  initialVerifFilter = 'ALL',
   onOpenShareLinkModal,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [verifFilter, setVerifFilter] = useState<string>(initialVerifFilter || 'ALL');
   const [kategoriFilter, setKategoriFilter] = useState('ALL');
   const [tahunFilter, setTahunFilter] = useState('ALL');
 
@@ -69,6 +77,17 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
   const [bulkStatusModalOpen, setBulkStatusModalOpen] = useState(false);
   const [selectedTargetStatus, setSelectedTargetStatus] = useState<string>('Aktif');
 
+  // Bulk Verification State
+  const [bulkVerifModalOpen, setBulkVerifModalOpen] = useState(false);
+  const [bulkVerifStatus, setBulkVerifStatus] = useState<StatusVerifikasiPendaftaran>('Terverifikasi');
+  const [bulkVerifNotes, setBulkVerifNotes] = useState<string>('');
+  const [bulkVerifName, setBulkVerifName] = useState<string>(
+    userRole === 'ADMIN' ? 'Administrator SIMPENDIK' : 'PIC Program Non Gelar'
+  );
+  const [bulkVerifRole, setBulkVerifRole] = useState<'ADMIN' | 'PIC' | string>(
+    userRole === 'ADMIN' ? 'ADMIN' : 'PIC'
+  );
+
   const masterCheckboxRef = useRef<HTMLInputElement>(null);
   const masterMenuRef = useRef<HTMLDivElement>(null);
 
@@ -89,11 +108,42 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
     tahunBatch: true,
     status: true,
     kelulusan: true,
+    statusVerifikasi: true,
+    dokumen: true,
   });
   const [showColMenu, setShowColMenu] = useState(false);
 
   // Modal Delete Confirm Single
   const [deleteTarget, setDeleteTarget] = useState<Peserta | null>(null);
+
+  // Sync initialVerifFilter if prop changes
+  useEffect(() => {
+    if (initialVerifFilter) {
+      setVerifFilter(initialVerifFilter);
+    }
+  }, [initialVerifFilter]);
+
+  // Statistics for Verification
+  const verifStats = useMemo(() => {
+    let menunggu = 0;
+    let terverifikasi = 0;
+    let perbaikan = 0;
+    let ditolak = 0;
+    pesertaList.forEach(p => {
+      const v = p.statusVerifikasi || 'Menunggu Verifikasi';
+      if (v === 'Terverifikasi') terverifikasi++;
+      else if (v === 'Perlu Perbaikan') perbaikan++;
+      else if (v === 'Ditolak') ditolak++;
+      else menunggu++;
+    });
+    return {
+      total: pesertaList.length,
+      menunggu,
+      terverifikasi,
+      perbaikan,
+      ditolak
+    };
+  }, [pesertaList]);
 
   // Close master select dropdown on click outside
   useEffect(() => {
@@ -115,6 +165,11 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
     return pesertaList.filter(p => {
       // Status Filter
       if (statusFilter !== 'ALL' && p.statusPeserta !== statusFilter) return false;
+      // Status Verifikasi Filter
+      if (verifFilter !== 'ALL') {
+        const v = p.statusVerifikasi || 'Menunggu Verifikasi';
+        if (v !== verifFilter) return false;
+      }
       // Kategori Filter
       if (kategoriFilter !== 'ALL' && p.kategoriProgram !== kategoriFilter) return false;
       // Tahun Filter
@@ -379,6 +434,27 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
     setBulkStatusModalOpen(false);
   };
 
+  const handleConfirmBulkVerif = () => {
+    if (selectedIds.length === 0) return;
+    const count = selectedIds.length;
+    const res = verifyMultiplePeserta(
+      selectedIds,
+      bulkVerifStatus,
+      bulkVerifName.trim() || 'Verifikator DPNG',
+      bulkVerifRole
+    );
+    if (res.success && onRefreshData) {
+      onRefreshData();
+    }
+    setImportToast({
+      show: true,
+      message: `Status verifikasi ${count} berkas pendaftaran berhasil diubah menjadi "${bulkVerifStatus}".`
+    });
+    setTimeout(() => setImportToast(null), 5000);
+    setSelectedIds([]);
+    setBulkVerifModalOpen(false);
+  };
+
   const handleSort = (field: keyof Peserta) => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -618,13 +694,26 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
               onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
               className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
             >
-              <option value="ALL">Semua Status</option>
+              <option value="ALL">Semua Status Peserta</option>
               <option value="Terdaftar">Terdaftar</option>
               <option value="Aktif">Aktif</option>
               <option value="Selesai">Selesai</option>
               <option value="Lulus">Lulus</option>
               <option value="Tidak Lulus">Tidak Lulus</option>
               <option value="Mengundurkan Diri">Mengundurkan Diri</option>
+            </select>
+
+            {/* Status Verifikasi Filter Dropdown */}
+            <select
+              value={verifFilter}
+              onChange={(e) => { setVerifFilter(e.target.value); setCurrentPage(1); }}
+              className="bg-amber-50/70 border border-amber-300 rounded-lg px-2.5 py-2 text-xs font-bold text-[#002B66] focus:outline-none cursor-pointer"
+            >
+              <option value="ALL">Semua Verifikasi</option>
+              <option value="Menunggu Verifikasi">Menunggu Verifikasi ({verifStats.menunggu})</option>
+              <option value="Terverifikasi">Terverifikasi ({verifStats.terverifikasi})</option>
+              <option value="Perlu Perbaikan">Perlu Perbaikan ({verifStats.perbaikan})</option>
+              <option value="Ditolak">Ditolak ({verifStats.ditolak})</option>
             </select>
 
             {/* Tahun Filter */}
@@ -694,15 +783,106 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
                   <label className="flex items-center gap-2 p-1.5 hover:bg-slate-50 rounded cursor-pointer">
                     <input 
                       type="checkbox" 
+                      checked={showColumns.status} 
+                      onChange={() => setShowColumns(prev => ({ ...prev, status: !prev.status }))} 
+                    />
+                    <span>Status Peserta</span>
+                  </label>
+                  <label className="flex items-center gap-2 p-1.5 hover:bg-slate-50 rounded cursor-pointer">
+                    <input 
+                      type="checkbox" 
                       checked={showColumns.kelulusan} 
                       onChange={() => setShowColumns(prev => ({ ...prev, kelulusan: !prev.kelulusan }))} 
                     />
                     <span>Kelulusan</span>
                   </label>
+                  <label className="flex items-center gap-2 p-1.5 hover:bg-slate-50 rounded cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={showColumns.statusVerifikasi} 
+                      onChange={() => setShowColumns(prev => ({ ...prev, statusVerifikasi: !prev.statusVerifikasi }))} 
+                    />
+                    <span className="font-bold text-[#002B66]">Status Verifikasi</span>
+                  </label>
+                  <label className="flex items-center gap-2 p-1.5 hover:bg-slate-50 rounded cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={showColumns.dokumen} 
+                      onChange={() => setShowColumns(prev => ({ ...prev, dokumen: !prev.dokumen }))} 
+                    />
+                    <span className="font-bold text-[#002B66]">Dokumen Berkas</span>
+                  </label>
                 </div>
               )}
             </div>
           </div>
+        </div>
+
+        {/* Quick Verification Status Filter Badges */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs border-b border-slate-100 pt-1">
+          <span className="text-[11px] font-bold text-slate-500 shrink-0 flex items-center gap-1 mr-1">
+            <ShieldCheck className="w-3.5 h-3.5 text-[#002B66]" />
+            <span>Verifikasi Berkas:</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => { setVerifFilter('ALL'); setCurrentPage(1); }}
+            className={`px-2.5 py-1 rounded-full font-semibold transition-colors cursor-pointer shrink-0 text-xs ${
+              verifFilter === 'ALL'
+                ? 'bg-[#002B66] text-white shadow-2xs font-bold'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Semua ({pesertaList.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => { setVerifFilter('Menunggu Verifikasi'); setCurrentPage(1); }}
+            className={`px-2.5 py-1 rounded-full font-bold transition-colors cursor-pointer shrink-0 text-xs flex items-center gap-1.5 ${
+              verifFilter === 'Menunggu Verifikasi'
+                ? 'bg-amber-500 text-[#002B66] shadow-2xs font-black'
+                : 'bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100'
+            }`}
+          >
+            <Clock className="w-3 h-3" />
+            <span>Menunggu ({verifStats.menunggu})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setVerifFilter('Terverifikasi'); setCurrentPage(1); }}
+            className={`px-2.5 py-1 rounded-full font-bold transition-colors cursor-pointer shrink-0 text-xs flex items-center gap-1.5 ${
+              verifFilter === 'Terverifikasi'
+                ? 'bg-emerald-600 text-white shadow-2xs'
+                : 'bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100'
+            }`}
+          >
+            <CheckCircle2 className="w-3 h-3" />
+            <span>Terverifikasi ({verifStats.terverifikasi})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setVerifFilter('Perlu Perbaikan'); setCurrentPage(1); }}
+            className={`px-2.5 py-1 rounded-full font-bold transition-colors cursor-pointer shrink-0 text-xs flex items-center gap-1.5 ${
+              verifFilter === 'Perlu Perbaikan'
+                ? 'bg-orange-500 text-white shadow-2xs'
+                : 'bg-orange-50 text-orange-900 border border-orange-200 hover:bg-orange-100'
+            }`}
+          >
+            <AlertTriangle className="w-3 h-3" />
+            <span>Perlu Perbaikan ({verifStats.perbaikan})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setVerifFilter('Ditolak'); setCurrentPage(1); }}
+            className={`px-2.5 py-1 rounded-full font-bold transition-colors cursor-pointer shrink-0 text-xs flex items-center gap-1.5 ${
+              verifFilter === 'Ditolak'
+                ? 'bg-rose-600 text-white shadow-2xs'
+                : 'bg-rose-50 text-rose-900 border border-rose-200 hover:bg-rose-100'
+            }`}
+          >
+            <X className="w-3 h-3" />
+            <span>Ditolak ({verifStats.ditolak})</span>
+          </button>
         </div>
 
         {/* Status Filter Chips */}
@@ -890,17 +1070,28 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
                     Status
                   </th>
                 )}
+                {showColumns.statusVerifikasi && (
+                  <th 
+                    onClick={() => handleSort('statusVerifikasi')} 
+                    className="p-3 cursor-pointer hover:bg-[#083a7e]"
+                  >
+                    Verifikasi Berkas
+                  </th>
+                )}
+                {showColumns.dokumen && (
+                  <th className="p-3 text-center">Dokumen Berkas (4)</th>
+                )}
                 {showColumns.kelulusan && (
                   <th className="p-3">Kelulusan</th>
                 )}
-                <th className="p-3 text-center w-28">Aksi</th>
+                <th className="p-3 text-center w-32">Aksi</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-slate-200">
               {paginatedData.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="text-center py-10 text-slate-400">
+                  <td colSpan={14} className="text-center py-10 text-slate-400">
                     <FileText className="w-8 h-8 mx-auto mb-2 opacity-40" />
                     Tidak ada data peserta yang cocok dengan kriteria pencarian.
                   </td>
@@ -1008,6 +1199,107 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
                           </span>
                         </td>
                       )}
+                      {showColumns.statusVerifikasi && (
+                        <td className="p-3">
+                          {(() => {
+                            const verif = p.statusVerifikasi || 'Menunggu Verifikasi';
+                            const config = {
+                              Terverifikasi: {
+                                badge: 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold',
+                                icon: CheckCircle2,
+                                text: 'Terverifikasi'
+                              },
+                              'Perlu Perbaikan': {
+                                badge: 'bg-orange-50 text-orange-800 border-orange-300 font-bold',
+                                icon: AlertTriangle,
+                                text: 'Perlu Perbaikan'
+                              },
+                              Ditolak: {
+                                badge: 'bg-rose-50 text-rose-800 border-rose-300 font-bold',
+                                icon: X,
+                                text: 'Ditolak'
+                              },
+                              'Menunggu Verifikasi': {
+                                badge: 'bg-amber-50 text-amber-900 border-amber-300 font-bold',
+                                icon: Clock,
+                                text: 'Menunggu Verifikasi'
+                              }
+                            }[verif] || {
+                              badge: 'bg-amber-50 text-amber-900 border-amber-300 font-bold',
+                              icon: Clock,
+                              text: verif
+                            };
+                            const IconComp = config.icon;
+                            return (
+                              <div className="space-y-1">
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border ${config.badge}`}>
+                                  <IconComp className="w-3 h-3 shrink-0" />
+                                  <span>{config.text}</span>
+                                </span>
+                                {p.verifikatorNama && (
+                                  <div className="text-[10px] text-slate-500">
+                                    Oleh: <span className="font-semibold text-slate-700">{p.verifikatorNama}</span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </td>
+                      )}
+                      {showColumns.dokumen && (
+                        <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          {(() => {
+                            const d = p.dokumen;
+                            const hasKtp = Boolean(d?.ktp);
+                            const hasKk = Boolean(d?.kartuKeluarga);
+                            const hasFoto = Boolean(d?.pasPhoto);
+                            const hasIjazah = Boolean(d?.ijazahTerakhir);
+                            const count = [hasKtp, hasKk, hasFoto, hasIjazah].filter(Boolean).length;
+
+                            return (
+                              <div className="inline-flex flex-col items-center gap-1">
+                                <div className="flex items-center gap-1">
+                                  <span 
+                                    title={`KTP: ${hasKtp ? (d?.ktp?.namaFile || 'Terlampir') : 'Belum diunggah'}`}
+                                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                      hasKtp ? 'bg-blue-100 text-[#002B66] border border-blue-200' : 'bg-slate-100 text-slate-400 border border-dashed border-slate-200'
+                                    }`}
+                                  >
+                                    KTP
+                                  </span>
+                                  <span 
+                                    title={`Kartu Keluarga: ${hasKk ? (d?.kartuKeluarga?.namaFile || 'Terlampir') : 'Belum diunggah'}`}
+                                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                      hasKk ? 'bg-purple-100 text-purple-900 border border-purple-200' : 'bg-slate-100 text-slate-400 border border-dashed border-slate-200'
+                                    }`}
+                                  >
+                                    KK
+                                  </span>
+                                  <span 
+                                    title={`Pas Photo: ${hasFoto ? (d?.pasPhoto?.namaFile || 'Terlampir') : 'Belum diunggah'}`}
+                                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                      hasFoto ? 'bg-red-100 text-red-900 border border-red-200' : 'bg-slate-100 text-slate-400 border border-dashed border-slate-200'
+                                    }`}
+                                  >
+                                    Foto
+                                  </span>
+                                  <span 
+                                    title={`Ijazah: ${hasIjazah ? (d?.ijazahTerakhir?.namaFile || 'Terlampir') : 'Belum diunggah'}`}
+                                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                      hasIjazah ? 'bg-emerald-100 text-emerald-900 border border-emerald-200' : 'bg-slate-100 text-slate-400 border border-dashed border-slate-200'
+                                    }`}
+                                  >
+                                    Ijazah
+                                  </span>
+                                </div>
+                                <span className={`text-[10px] font-bold ${count === 4 ? 'text-emerald-700' : count > 0 ? 'text-amber-700' : 'text-slate-400'}`}>
+                                  {count}/4 Dokumen
+                                </span>
+                              </div>
+                            );
+                          })()}
+                        </td>
+                      )}
                       {showColumns.kelulusan && (
                         <td className="p-3">
                           <span className={`inline-block text-[11px] font-semibold ${
@@ -1028,6 +1320,18 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className="flex items-center justify-center gap-1">
+                          {/* Tombol Verifikasi Berkas (Admin & PIC) */}
+                          {userRole !== 'VIEWER' && (
+                            <button
+                              id={`btn-verif-${p.id}`}
+                              onClick={() => onViewVerification ? onViewVerification(p) : onViewDetail(p)}
+                              className="p-1.5 bg-blue-50 hover:bg-[#002B66] text-[#002B66] hover:text-[#FDB913] rounded transition-colors cursor-pointer"
+                              title="Verifikasi Dokumen Pendaftaran (Admin & PIC Program)"
+                            >
+                              <ShieldCheck className="w-4 h-4" />
+                            </button>
+                          )}
+
                           <button
                             id={`btn-view-${p.id}`}
                             onClick={() => onViewDetail(p)}
@@ -1196,6 +1500,20 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
               </button>
             )}
 
+            {/* Verifikasi Berkas Massal (Admin & PIC) */}
+            {userRole !== 'VIEWER' && (
+              <button
+                type="button"
+                id="btn-bulk-verify"
+                onClick={() => setBulkVerifModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2 bg-[#FDB913] hover:bg-amber-400 text-[#002B66] rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                title="Verifikasi berkas persyaratan pendaftaran secara massal (Admin & PIC Program)"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Verifikasi Berkas ({selectedIds.length})</span>
+              </button>
+            )}
+
             {/* Hapus Data Terpilih (Admin) */}
             {userRole === 'ADMIN' && (
               <button
@@ -1332,6 +1650,161 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
                 className="px-4 py-2 bg-[#002B66] hover:bg-[#083a7e] text-white font-semibold rounded-lg text-xs shadow-xs cursor-pointer"
               >
                 Terapkan Status "{selectedTargetStatus}"
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Verifikasi Berkas Massal (Admin & PIC Program) */}
+      {bulkVerifModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl border border-slate-200">
+            <div className="flex items-center gap-3 text-[#002B66] mb-3">
+              <div className="p-2.5 rounded-full bg-blue-100 text-[#002B66]">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-800">Verifikasi Berkas Pendaftaran Massal</h3>
+                <p className="text-xs text-slate-500">Keputusan verifikasi untuk {selectedIds.length} calon peserta terpilih</p>
+              </div>
+            </div>
+
+            <div className="space-y-4 mb-5 text-xs">
+              {/* Selected List Preview */}
+              <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 max-h-36 overflow-y-auto space-y-1.5 text-xs">
+                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Peserta yang akan diverifikasi ({selectedIds.length}):
+                </div>
+                {selectedPesertaList.slice(0, 6).map(p => (
+                  <div key={p.id} className="flex items-center justify-between text-slate-700 py-0.5 border-b border-slate-100 last:border-b-0">
+                    <span className="font-medium truncate max-w-[240px]">{p.namaLengkap}</span>
+                    <span className="font-mono text-[10px] text-slate-400">{p.id}</span>
+                  </div>
+                ))}
+                {selectedPesertaList.length > 6 && (
+                  <div className="text-[11px] text-slate-400 italic pt-1">
+                    ...dan {selectedPesertaList.length - 6} peserta lainnya.
+                  </div>
+                )}
+              </div>
+
+              {/* Status Decision Picker */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Keputusan Verifikasi Berkas:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setBulkVerifStatus('Terverifikasi')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold text-left transition-all cursor-pointer flex flex-col justify-between ${
+                      bulkVerifStatus === 'Terverifikasi' 
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs' 
+                        : 'bg-emerald-50/50 hover:bg-emerald-100/60 text-emerald-900 border-emerald-200'
+                    }`}
+                  >
+                    <span className="flex items-center justify-between">
+                      <span>✓ Terverifikasi</span>
+                      {bulkVerifStatus === 'Terverifikasi' && <Check className="w-3.5 h-3.5" />}
+                    </span>
+                    <span className="text-[10px] font-normal opacity-90 mt-0.5">Disetujui, berkas valid</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setBulkVerifStatus('Perlu Perbaikan')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold text-left transition-all cursor-pointer flex flex-col justify-between ${
+                      bulkVerifStatus === 'Perlu Perbaikan' 
+                        ? 'bg-amber-600 text-white border-amber-600 shadow-2xs' 
+                        : 'bg-amber-50/50 hover:bg-amber-100/60 text-amber-900 border-amber-200'
+                    }`}
+                  >
+                    <span className="flex items-center justify-between">
+                      <span>⚠ Perlu Perbaikan</span>
+                      {bulkVerifStatus === 'Perlu Perbaikan' && <Check className="w-3.5 h-3.5" />}
+                    </span>
+                    <span className="text-[10px] font-normal opacity-90 mt-0.5">Minta berkas diperbaiki</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setBulkVerifStatus('Ditolak')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold text-left transition-all cursor-pointer flex flex-col justify-between ${
+                      bulkVerifStatus === 'Ditolak' 
+                        ? 'bg-rose-600 text-white border-rose-600 shadow-2xs' 
+                        : 'bg-rose-50/50 hover:bg-rose-100/60 text-rose-900 border-rose-200'
+                    }`}
+                  >
+                    <span className="flex items-center justify-between">
+                      <span>✕ Ditolak</span>
+                      {bulkVerifStatus === 'Ditolak' && <Check className="w-3.5 h-3.5" />}
+                    </span>
+                    <span className="text-[10px] font-normal opacity-90 mt-0.5">Tidak memenuhi syarat</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Verifier Identity Input */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Nama Verifikator
+                  </label>
+                  <input
+                    type="text"
+                    value={bulkVerifName}
+                    onChange={(e) => setBulkVerifName(e.target.value)}
+                    placeholder="Nama Admin / PIC"
+                    className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Kapasitas / Jabatan
+                  </label>
+                  <select
+                    value={bulkVerifRole}
+                    onChange={(e) => setBulkVerifRole(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-medium"
+                  >
+                    <option value="ADMIN">Administrator SIMPENDIK</option>
+                    <option value="PIC">PIC / Koordinator Program</option>
+                    <option value="OPERATOR">Operator Non Gelar</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Catatan / Keterangan Verifikasi (Opsional)
+                </label>
+                <input
+                  type="text"
+                  value={bulkVerifNotes}
+                  onChange={(e) => setBulkVerifNotes(e.target.value)}
+                  placeholder="Contoh: Berkas KTP, KK, Pas Photo, dan Ijazah telah sesuai standar verifikasi."
+                  className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setBulkVerifModalOpen(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmBulkVerif}
+                className="px-4 py-2 bg-[#002B66] hover:bg-[#083a7e] text-white font-semibold rounded-lg text-xs shadow-xs cursor-pointer flex items-center gap-1.5"
+              >
+                <ShieldCheck className="w-4 h-4 text-[#FDB913]" />
+                <span>Simpan Verifikasi ({selectedIds.length})</span>
               </button>
             </div>
           </div>
