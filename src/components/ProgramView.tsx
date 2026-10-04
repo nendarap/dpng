@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Plus, Edit2, Trash2, GraduationCap, CheckCircle2, 
-  XCircle, AlertTriangle, Users, Search, Filter
+  XCircle, AlertTriangle, Users, Search, Filter, ToggleLeft
 } from 'lucide-react';
 import { Program, Kategori, Peserta, UserRole } from '../types';
 
@@ -12,6 +12,7 @@ interface ProgramViewProps {
   userRole: UserRole;
   onSaveProgram: (prog: Program) => void;
   onDeleteProgram: (idProgram: string) => void;
+  onNavigateToPengaturanPendaftaran?: () => void;
 }
 
 export const ProgramView: React.FC<ProgramViewProps> = ({
@@ -21,6 +22,7 @@ export const ProgramView: React.FC<ProgramViewProps> = ({
   userRole,
   onSaveProgram,
   onDeleteProgram,
+  onNavigateToPengaturanPendaftaran,
 }) => {
   const [selectedKat, setSelectedKat] = useState<string>('ALL');
   const [searchKw, setSearchKw] = useState<string>('');
@@ -97,16 +99,30 @@ export const ProgramView: React.FC<ProgramViewProps> = ({
           </p>
         </div>
 
-        {userRole !== 'VIEWER' && (
-          <button
-            id="btn-tambah-program"
-            onClick={handleOpenAdd}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-[#002B66] hover:bg-[#083a7e] text-white rounded-lg text-xs font-semibold shadow-xs transition-colors"
-          >
-            <Plus className="w-4 h-4 text-[#FDB913]" />
-            <span>Tambah Program Baru</span>
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {onNavigateToPengaturanPendaftaran && (
+            <button
+              type="button"
+              id="btn-nav-pengaturan-pendaftaran"
+              onClick={onNavigateToPengaturanPendaftaran}
+              className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-semibold shadow-xs transition-colors"
+            >
+              <ToggleLeft className="w-4 h-4 text-emerald-600" />
+              <span>Buka/Tutup Pendaftaran</span>
+            </button>
+          )}
+
+          {userRole !== 'VIEWER' && (
+            <button
+              id="btn-tambah-program"
+              onClick={handleOpenAdd}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-[#002B66] hover:bg-[#083a7e] text-white rounded-lg text-xs font-semibold shadow-xs transition-colors"
+            >
+              <Plus className="w-4 h-4 text-[#FDB913]" />
+              <span>Tambah Program Baru</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filter Toolbar */}

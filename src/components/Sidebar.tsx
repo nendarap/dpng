@@ -4,7 +4,7 @@ import {
   Search, FileSpreadsheet, Download, BarChart3, ShieldCheck, 
   History, Settings, Code, X, LogOut, Map as MapIcon, UserCheck, Compass,
   SlidersHorizontal, Shield, ChevronRight, ChevronDown, DatabaseBackup, Database,
-  Briefcase, Folder, Globe
+  Briefcase, Folder, Globe, ToggleLeft
 } from 'lucide-react';
 import { UserRole, GroupAkun, UserItem, AppMenuId, AppMenuItemDef, AppThemeId } from '../types';
 import { hasMenuAccess } from '../data/privilegeData';
@@ -20,6 +20,7 @@ export type ActiveTab =
   | 'tambah' 
   | 'kategori' 
   | 'program' 
+  | 'pengaturan_pendaftaran'
   | 'pic'
   | 'pegawai'
   | 'eduventure'
@@ -57,6 +58,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   tambah: UserPlus,
   kategori: Layers,
   program: GraduationCap,
+  pengaturan_pendaftaran: ToggleLeft,
   pic: UserCheck,
   pegawai: Briefcase,
   eduventure: Compass,
@@ -121,10 +123,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
     if (userRole === 'ADMIN') return true;
     if (userRole === 'OPERATOR') {
-      return ['dashboard', 'eduventure_dashboard', 'map_dashboard', 'pegawai_dashboard', 'kategori', 'program', 'pic', 'pegawai', 'peserta', 'tambah', 'eduventure', 'search', 'statistik', 'export', 'log', 'gas_code', 'backup_restore'].includes(itemId);
+      return ['dashboard', 'eduventure_dashboard', 'map_dashboard', 'pegawai_dashboard', 'kategori', 'program', 'pengaturan_pendaftaran', 'pic', 'pegawai', 'peserta', 'tambah', 'eduventure', 'search', 'statistik', 'export', 'log', 'gas_code', 'backup_restore'].includes(itemId);
     }
     if (userRole === 'VIEWER') {
-      return ['dashboard', 'eduventure_dashboard', 'map_dashboard', 'pegawai_dashboard', 'kategori', 'program', 'pic', 'pegawai', 'peserta', 'eduventure', 'search', 'statistik', 'export', 'gas_code'].includes(itemId);
+      return ['dashboard', 'eduventure_dashboard', 'map_dashboard', 'pegawai_dashboard', 'kategori', 'program', 'pengaturan_pendaftaran', 'pic', 'pegawai', 'peserta', 'eduventure', 'search', 'statistik', 'export', 'gas_code'].includes(itemId);
     }
     return false;
   };

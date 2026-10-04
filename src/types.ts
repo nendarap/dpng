@@ -167,10 +167,13 @@ export interface Kategori {
   namaKategori: string;
   deskripsi: string;
   statusAktif: boolean | 'Ya' | 'Tidak';
+  statusPendaftaranKategori?: 'Buka' | 'Tutup';
   urutan?: number;
   createdAt?: string;
   updatedAt?: string;
 }
+
+export type StatusPendaftaranProgram = 'Buka' | 'Tutup' | 'Segera Dibuka' | 'Penuh';
 
 export interface Program {
   idProgram: string;
@@ -179,6 +182,11 @@ export interface Program {
   namaProgram: string;
   deskripsi: string;
   statusAktif: boolean | 'Ya' | 'Tidak';
+  statusPendaftaran?: StatusPendaftaranProgram;
+  tanggalBukaPendaftaran?: string; // YYYY-MM-DD
+  tanggalTutupPendaftaran?: string; // YYYY-MM-DD
+  kuotaPeserta?: number;
+  keteranganPendaftaran?: string;
   idPic?: string;
   namaPic?: string;
   durasi?: string;
@@ -277,6 +285,7 @@ export type AppMenuId =
   | 'tambah' 
   | 'kategori' 
   | 'program' 
+  | 'pengaturan_pendaftaran'
   | 'pic'
   | 'pegawai'
   | 'eduventure'
@@ -375,6 +384,18 @@ export interface LoginSettings {
   showFeatureHighlights: boolean;
 }
 
+export interface PengaturanPendaftaran {
+  statusPendaftaranGlobal: 'Buka' | 'Tutup';
+  pesanPendaftaranDitutup?: string;
+  autoTutupJikaLewatDeadline: boolean;
+  autoTutupJikaKuotaPenuh: boolean;
+  kontakBantuanWa?: string;
+  kontakBantuanEmail?: string;
+  pengumumanPendaftaran?: string;
+  tampilkanSisaKuotaPublik: boolean;
+  tampilkanPeriodePublik: boolean;
+}
+
 export interface SettingApp {
   namaAplikasi: string;
   namaInstitusi: string;
@@ -393,6 +414,7 @@ export interface SettingApp {
   modeKoneksi?: 'local_sheet' | 'gas_live';
   lastSyncedAt?: string;
   loginSettings?: LoginSettings;
+  pengaturanPendaftaran?: PengaturanPendaftaran;
 }
 
 export interface MasterData {

@@ -4,12 +4,13 @@ import {
   GroupAkun, MenuPrivilege, AppMenuItemDef, AppThemeId, LoginSettings,
   SimpendikBackupPayload, SimpendikBackupData, SimpendikBackupSummary,
   BackupSnapshotItem, RestoreMode, Pegawai, LoginSession, SessionConfig,
-  StatusVerifikasiPendaftaran
+  StatusVerifikasiPendaftaran, PengaturanPendaftaran
 } from '../types';
 import { 
   DEFAULT_KATEGORI, DEFAULT_PROGRAM, DEFAULT_PESERTA, 
   DEFAULT_USERS, DEFAULT_LOGS, DEFAULT_SETTING, DEFAULT_PIC,
-  DEFAULT_EDUVENTURE, DEFAULT_TEMPAT_EDUVENTURE, DEFAULT_PEGAWAI
+  DEFAULT_EDUVENTURE, DEFAULT_TEMPAT_EDUVENTURE, DEFAULT_PEGAWAI,
+  DEFAULT_PENGATURAN_PENDAFTARAN
 } from '../data/initialData';
 import { DEFAULT_GROUPS, APP_MENU_DEFINITIONS, ROLE_PRESET_MAP } from '../data/privilegeData';
 import { DEFAULT_LOGIN_SETTINGS } from '../data/loginPresets';
@@ -713,6 +714,10 @@ export function getSettings(): SettingApp {
         ...DEFAULT_LOGIN_SETTINGS,
         ...(parsed.loginSettings || {}),
       },
+      pengaturanPendaftaran: {
+        ...DEFAULT_PENGATURAN_PENDAFTARAN,
+        ...(parsed.pengaturanPendaftaran || {}),
+      },
     };
     // Migrasi otomatis jika masih menggunakan ID lama atau kosong
     if (!result.spreadsheetId || result.spreadsheetId === '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms') {
@@ -864,6 +869,217 @@ export function deleteProgram(idProgram: string): void {
   const list = getProgram().filter(p => p.idProgram !== idProgram);
   localStorage.setItem(STORAGE_KEYS.PROGRAM, JSON.stringify(list));
   writeLog('Hapus Program', 'PROGRAM', idProgram, `Hapus program ID ${idProgram}`);
+}
+
+// ==========================================================
+// PENGATURAN PENDAFTARAN & BUKA TUTUP PROGRAM PELATIHAN
+// ==========================================================
+
+export function getPengaturanPendaftaran(): PengaturanPendaftaran {
+  const settings = getSettings();
+  return settings.pengaturanPendaftaran || DEFAULT_PENGATURAN_PENDAFTARAN;
+}
+
+export function savePengaturanPendaftaran(config: PengaturanPendaftaran): void {
+  const settings = getSettings();
+  settings.pengaturanPendaftaran = config;
+  saveSettings(settings);
+  writeLog('Update Pengaturan Pendaftaran', 'SETTING', 'REGISTRATION_CONFIG', `Status pendaftaran global diubah menjadi ${config.statusPendaftaranGlobal}`);
+}
+
+export function toggleProgramRegistration(idProgram: string, status: 'Buka' | 'Tutup' | 'Segera Dibuka' | 'Penuh'): Program | null {
+  const list = getProgram();
+  const idx = list.findIndex(p => p.idProgram === idProgram);
+  if (idx < 0) return null;
+  const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  list[idx] = {
+    ...list[idx],
+    statusPendaftaran: status,
+    updatedAt: now,
+  };
+  localStorage.setItem(STORAGE_KEYS.PROGRAM, JSON.stringify(list));
+  writeLog('Ubah Status Pendaftaran Program', 'PROGRAM', idProgram, `Status pendaftaran ${list[idx].namaProgram} diubah menjadi ${status}`);
+  return list[idx];
+}
+
+export function toggleCategoryProgramsRegistration(idKategori: string, newStatus: 'Buka' | 'Tutup'): Program[] {
+  const programs = getProgram();
+  const kategoriList = getKategori();
+  const katIdx = kategoriList.findIndex(k => k.idKategori === idKategori);
+  const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+  if (katIdx >= 0) {
+    kategoriList[katIdx] = {
+      ...kategoriList[katIdx],
+      statusPendaftaranKategori: newStatus,
+      updatedAt: now,
+    };
+    localStorage.setItem(STORAGE_KEYS.KATEGORI, JSON.stringify(kategoriList));
+  }
+
+  const updatedPrograms = programs.map(p => {
+    if (p.idKategori === idKategori) {
+      return {
+        ...p,
+        statusPendaftaran: newStatus,
+        updatedAt: now,
+      };
+    }
+    return p;
+  });
+
+  localStorage.setItem(STORAGE_KEYS.PROGRAM, JSON.stringify(updatedPrograms));
+  const katName = katIdx >= 0 ? kategoriList[katIdx].namaKategori : idKategori;
+  writeLog('Ubah Status Pendaftaran Kategori', 'KATEGORI', idKategori, `Seluruh program kategori ${katName} diubah menjadi ${newStatus}`);
+  return updatedPrograms;
+}
+
+export function bulkUpdateProgramsRegistration(programIds: string[], update: Partial<Program>): Program[] {
+  const list = getProgram();
+  const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  const updated = list.map(p => {
+    if (programIds.includes(p.idProgram)) {
+      return {
+        ...p,
+        ...update,
+        updatedAt: now,
+      };
+    }
+    return p;
+  });
+  localStorage.setItem(STORAGE_KEYS.PROGRAM, JSON.stringify(updated));
+  writeLog('Aksi Massal Pendaftaran Program', 'PROGRAM', 'BULK', `Memperbarui status pendaftaran ${programIds.length} program`);
+  return updated;
+}
+
+export function checkProgramRegistrationStatus(
+  program: Program,
+  kategori?: Kategori,
+  settings?: SettingApp,
+  pesertaList?: Peserta[]
+): {
+  isOpen: boolean;
+  status: 'Buka' | 'Tutup' | 'Segera Dibuka' | 'Penuh';
+  reason?: string;
+  sisaKuota?: number;
+  kuotaTotal?: number;
+  totalTerdaftar: number;
+} {
+  const appSettings = settings || getSettings();
+  const regConfig = appSettings.pengaturanPendaftaran || DEFAULT_PENGATURAN_PENDAFTARAN;
+  const allPeserta = pesertaList || getPeserta();
+
+  // 1. Check Global Registration Switch
+  if (regConfig.statusPendaftaranGlobal === 'Tutup') {
+    return {
+      isOpen: false,
+      status: 'Tutup',
+      reason: regConfig.pesanPendaftaranDitutup || 'Pendaftaran program non-gelar Unpad sedang ditutup sementara oleh Administrator.',
+      totalTerdaftar: 0,
+    };
+  }
+
+  // 2. Check Category Status
+  if (kategori && kategori.statusPendaftaranKategori === 'Tutup') {
+    return {
+      isOpen: false,
+      status: 'Tutup',
+      reason: `Pendaftaran untuk seluruh program dalam kategori "${kategori.namaKategori}" sedang ditutup.`,
+      totalTerdaftar: 0,
+    };
+  }
+
+  // 3. Count current enrolled participants in this program
+  const currentCount = allPeserta.filter(p => 
+    p.namaProgram === program.namaProgram || (program.idProgram && p.idProgram === program.idProgram)
+  ).length;
+
+  const targetQuota = program.kuotaPeserta || 30;
+  const sisa = Math.max(0, targetQuota - currentCount);
+
+  // 4. Check Explicit Program Status
+  if (program.statusPendaftaran === 'Tutup') {
+    return {
+      isOpen: false,
+      status: 'Tutup',
+      reason: program.keteranganPendaftaran || 'Pendaftaran program ini telah ditutup.',
+      sisaKuota: sisa,
+      kuotaTotal: targetQuota,
+      totalTerdaftar: currentCount,
+    };
+  }
+
+  if (program.statusPendaftaran === 'Segera Dibuka') {
+    return {
+      isOpen: false,
+      status: 'Segera Dibuka',
+      reason: program.tanggalBukaPendaftaran 
+        ? `Pendaftaran akan segera dibuka pada ${program.tanggalBukaPendaftaran}.`
+        : 'Pendaftaran program ini akan segera dibuka.',
+      sisaKuota: sisa,
+      kuotaTotal: targetQuota,
+      totalTerdaftar: currentCount,
+    };
+  }
+
+  if (program.statusPendaftaran === 'Penuh') {
+    return {
+      isOpen: false,
+      status: 'Penuh',
+      reason: 'Kuota pendaftaran peserta untuk program ini telah terpenuhi.',
+      sisaKuota: 0,
+      kuotaTotal: targetQuota,
+      totalTerdaftar: currentCount,
+    };
+  }
+
+  // 5. Automatic Deadline Check (if enabled)
+  const todayStr = new Date().toISOString().substring(0, 10);
+  if (regConfig.autoTutupJikaLewatDeadline && program.tanggalTutupPendaftaran) {
+    if (todayStr > program.tanggalTutupPendaftaran) {
+      return {
+        isOpen: false,
+        status: 'Tutup',
+        reason: `Batas waktu pendaftaran program ini telah berakhir pada ${program.tanggalTutupPendaftaran}.`,
+        sisaKuota: sisa,
+        kuotaTotal: targetQuota,
+        totalTerdaftar: currentCount,
+      };
+    }
+  }
+
+  // 6. Automatic Start Date Check
+  if (program.tanggalBukaPendaftaran && todayStr < program.tanggalBukaPendaftaran) {
+    return {
+      isOpen: false,
+      status: 'Segera Dibuka',
+      reason: `Pendaftaran baru akan dibuka pada tanggal ${program.tanggalBukaPendaftaran}.`,
+      sisaKuota: sisa,
+      kuotaTotal: targetQuota,
+      totalTerdaftar: currentCount,
+    };
+  }
+
+  // 7. Automatic Quota Full Check (if enabled)
+  if (regConfig.autoTutupJikaKuotaPenuh && program.kuotaPeserta && currentCount >= program.kuotaPeserta) {
+    return {
+      isOpen: false,
+      status: 'Penuh',
+      reason: `Kuota ${program.kuotaPeserta} peserta telah terpenuhi (${currentCount} peserta terdaftar).`,
+      sisaKuota: 0,
+      kuotaTotal: targetQuota,
+      totalTerdaftar: currentCount,
+    };
+  }
+
+  // Program is OPEN
+  return {
+    isOpen: true,
+    status: 'Buka',
+    sisaKuota: sisa,
+    kuotaTotal: targetQuota,
+    totalTerdaftar: currentCount,
+  };
 }
 
 // PIC / Koordinator Program CRUD

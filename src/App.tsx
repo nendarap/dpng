@@ -25,6 +25,7 @@ import { PegawaiView } from './components/PegawaiView';
 import { SessionManager } from './components/SessionManager';
 import { PublicRegistrationView } from './components/PublicRegistrationView';
 import { PublicPortalView } from './components/PublicPortalView';
+import { PengaturanPendaftaranView } from './components/PengaturanPendaftaranView';
 import { ShareRegistrationLinkModal } from './components/ShareRegistrationLinkModal';
 
 import { 
@@ -763,6 +764,20 @@ export default function App() {
                   userRole={currentUser.role}
                   onSaveProgram={handleSaveProgram}
                   onDeleteProgram={handleDeleteProgram}
+                  onNavigateToPengaturanPendaftaran={() => setActiveTab('pengaturan_pendaftaran')}
+                />
+              )}
+
+              {activeTab === 'pengaturan_pendaftaran' && (
+                <PengaturanPendaftaranView
+                  programList={programList}
+                  kategoriList={kategoriList}
+                  pesertaList={pesertaList}
+                  settings={settings}
+                  userRole={currentUser.role}
+                  onRefreshData={refreshAllData}
+                  onNavigateToPublicRegistration={() => setPublicPortalMode('daftar')}
+                  onNavigateToProgram={() => setActiveTab('program')}
                 />
               )}
 

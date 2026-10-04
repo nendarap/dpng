@@ -59,6 +59,16 @@ export const APP_MENU_DEFINITIONS: AppMenuItemDef[] = [
     supportedActions: { canCreate: true, canEdit: true, canDelete: true, canExport: true }
   },
   {
+    id: 'pengaturan_pendaftaran',
+    label: 'Pengaturan Pendaftaran',
+    kategoriModul: 'Master Data Program',
+    deskripsi: 'Manajemen buka/tutup pendaftaran peserta non-gelar, kuota, periode, dan penyesuaian kategori pelatihan.',
+    urutan: 6,
+    aktif: true,
+    iconName: 'ToggleLeft',
+    supportedActions: { canCreate: true, canEdit: true, canDelete: true, canExport: true }
+  },
+  {
     id: 'pic',
     label: 'PIC / Koordinator',
     kategoriModul: 'Master Data Program',
@@ -220,6 +230,7 @@ export const OPERATOR_PRIVILEGES: Record<string, MenuPrivilege> = {
   map_dashboard: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
   kategori: { canAccess: true, canCreate: true, canEdit: true, canDelete: false, canExport: true },
   program: { canAccess: true, canCreate: true, canEdit: true, canDelete: false, canExport: true },
+  pengaturan_pendaftaran: { canAccess: true, canCreate: true, canEdit: true, canDelete: false, canExport: true },
   pic: { canAccess: true, canCreate: true, canEdit: true, canDelete: false, canExport: true },
   pegawai: { canAccess: true, canCreate: true, canEdit: true, canDelete: true, canExport: true },
   peserta: { canAccess: true, canCreate: true, canEdit: true, canDelete: true, canExport: true },
@@ -244,6 +255,7 @@ export const VIEWER_PRIVILEGES: Record<string, MenuPrivilege> = {
   map_dashboard: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
   kategori: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
   program: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
+  pengaturan_pendaftaran: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
   pic: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
   pegawai: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
   peserta: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
@@ -268,6 +280,7 @@ export const KEUANGAN_PRIVILEGES: Record<string, MenuPrivilege> = {
   map_dashboard: { canAccess: false, canCreate: false, canEdit: false, canDelete: false, canExport: false },
   kategori: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
   program: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
+  pengaturan_pendaftaran: { canAccess: false, canCreate: false, canEdit: false, canDelete: false, canExport: false },
   pic: { canAccess: false, canCreate: false, canEdit: false, canDelete: false, canExport: false },
   pegawai: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
   peserta: { canAccess: true, canCreate: false, canEdit: true, canDelete: false, canExport: true },
@@ -291,6 +304,7 @@ export const KOORDINATOR_PRIVILEGES: Record<string, MenuPrivilege> = {
   map_dashboard: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
   kategori: { canAccess: true, canCreate: false, canEdit: false, canDelete: false, canExport: true },
   program: { canAccess: true, canCreate: true, canEdit: true, canDelete: false, canExport: true },
+  pengaturan_pendaftaran: { canAccess: true, canCreate: true, canEdit: true, canDelete: false, canExport: true },
   pic: { canAccess: true, canCreate: true, canEdit: true, canDelete: false, canExport: true },
   pegawai: { canAccess: true, canCreate: true, canEdit: true, canDelete: false, canExport: true },
   peserta: { canAccess: true, canCreate: true, canEdit: true, canDelete: false, canExport: true },
