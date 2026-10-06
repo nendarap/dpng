@@ -34,7 +34,7 @@ import {
 } from './types';
 import { 
   getPeserta, createPeserta, updatePeserta, deletePeserta, deleteMultiplePeserta, updateMultiplePesertaStatus,
-  getKategori, saveKategori, deleteKategori,
+  getKategori, saveKategori, deleteKategori, toggleCategoryProgramsRegistration,
   getProgram, saveProgram, deleteProgram,
   getPic, savePic, deletePic,
   getPegawai, savePegawai, deletePegawai, deleteMultiplePegawai, bulkImportPegawai,
@@ -328,6 +328,12 @@ export default function App() {
   const handleSaveKategori = (kat: Kategori) => {
     saveKategori(kat);
     showToast(`Kategori ${kat.namaKategori} berhasil disimpan!`);
+    refreshAllData();
+  };
+
+  const handleToggleKategoriPendaftaran = (idKategori: string, nextStatus: 'Buka' | 'Tutup') => {
+    toggleCategoryProgramsRegistration(idKategori, nextStatus);
+    showToast(`Status pendaftaran kategori berhasil diubah menjadi ${nextStatus}!`);
     refreshAllData();
   };
 
@@ -754,6 +760,8 @@ export default function App() {
                   onSaveKategori={handleSaveKategori}
                   onDeleteKategori={handleDeleteKategori}
                   onNavigateToEduventure={() => setActiveTab('eduventure')}
+                  onNavigateToPengaturanPendaftaran={() => setActiveTab('pengaturan_pendaftaran')}
+                  onTogglePendaftaranKategori={handleToggleKategoriPendaftaran}
                 />
               )}
 
@@ -879,6 +887,7 @@ export default function App() {
                   pesertaList={pesertaList}
                   kategoriList={kategoriList}
                   programList={programList}
+                  eduventureList={eduventureList}
                 />
               )}
 

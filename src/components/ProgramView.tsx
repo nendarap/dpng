@@ -37,6 +37,7 @@ export const ProgramView: React.FC<ProgramViewProps> = ({
   const [namaProgram, setNamaProgram] = useState('');
   const [deskripsi, setDeskripsi] = useState('');
   const [statusAktif, setStatusAktif] = useState<'Ya' | 'Tidak'>('Ya');
+  const [statusPendaftaran, setStatusPendaftaran] = useState<'Buka' | 'Tutup' | 'Segera Dibuka' | 'Penuh'>('Buka');
 
   const filteredPrograms = useMemo(() => {
     return programList.filter(p => {
@@ -52,6 +53,7 @@ export const ProgramView: React.FC<ProgramViewProps> = ({
     setNamaProgram('');
     setDeskripsi('');
     setStatusAktif('Ya');
+    setStatusPendaftaran('Buka');
     setModalOpen(true);
   };
 
@@ -61,6 +63,7 @@ export const ProgramView: React.FC<ProgramViewProps> = ({
     setNamaProgram(p.namaProgram);
     setDeskripsi(p.deskripsi || '');
     setStatusAktif(p.statusAktif === true || p.statusAktif === 'Ya' ? 'Ya' : 'Tidak');
+    setStatusPendaftaran(p.statusPendaftaran || 'Buka');
     setModalOpen(true);
   };
 
@@ -69,11 +72,13 @@ export const ProgramView: React.FC<ProgramViewProps> = ({
     if (!namaProgram.trim() || !idKategori) return;
 
     const payload: Program = {
+      ...(editItem || {}),
       idProgram: editItem ? editItem.idProgram : '',
       idKategori,
       namaProgram: namaProgram.trim(),
       deskripsi: deskripsi.trim(),
       statusAktif,
+      statusPendaftaran,
     };
 
     onSaveProgram(payload);
@@ -189,18 +194,33 @@ export const ProgramView: React.FC<ProgramViewProps> = ({
                       <td className="p-3 font-bold text-slate-800">{p.namaProgram}</td>
                       <td className="p-3 text-slate-500 max-w-xs truncate">{p.deskripsi || '-'}</td>
                       <td className="p-3 text-center">
-                        {(() => {
-                          const isActive = p.statusAktif === true || p.statusAktif === 'Ya';
-                          return (
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              isActive 
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                                : 'bg-slate-100 text-slate-500'
-                            }`}>
-                              {isActive ? 'Aktif' : 'Non-Aktif'}
-                            </span>
-                          );
-                        })()}
+                        <div className="flex flex-col items-center gap-1">
+                          {(() => {
+                            const regStatus = p.statusPendaftaran || 'Buka';
+                            return (
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                regStatus === 'Buka'
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                  : regStatus === 'Tutup'
+                                    ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                                    : regStatus === 'Segera Dibuka'
+                                      ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                      : 'bg-slate-200 text-slate-800 border border-slate-300'
+                              }`}>
+                                {regStatus === 'Buka' ? '🟢 Buka' : regStatus === 'Tutup' ? '🔴 Tutup' : regStatus === 'Segera Dibuka' ? '🟡 Segera' : '⚪ Penuh'}
+                              </span>
+                            );
+                          })()}
+
+                          {(() => {
+                            const isActive = p.statusAktif === true || p.statusAktif === 'Ya';
+                            return (
+                              <span className={`text-[9px] font-medium ${isActive ? 'text-slate-500' : 'text-rose-500'}`}>
+                                {isActive ? 'Master Aktif' : 'Non-Aktif'}
+                              </span>
+                            );
+                          })()}
+                        </div>
                       </td>
                       <td className="p-3 text-center">
                         <span className="font-bold text-[#002B66] bg-slate-100 px-2 py-0.5 rounded">
@@ -288,16 +308,32 @@ export const ProgramView: React.FC<ProgramViewProps> = ({
                 />
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Status Aktif</label>
-                <select
-                  value={statusAktif}
-                  onChange={(e) => setStatusAktif(e.target.value as any)}
-                  className="w-full p-2 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white font-medium"
-                >
-                  <option value="Ya">Aktif (Ya)</option>
-                  <option value="Tidak">Non-Aktif (Tidak)</option>
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Status Pendaftaran (Publik)</label>
+                  <select
+                    value={statusPendaftaran}
+                    onChange={(e) => setStatusPendaftaran(e.target.value as any)}
+                    className="w-full p-2 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white font-medium"
+                  >
+                    <option value="Buka">🟢 Buka</option>
+                    <option value="Tutup">🔴 Tutup</option>
+                    <option value="Segera Dibuka">🟡 Segera Dibuka</option>
+                    <option value="Penuh">⚪ Penuh</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Status Master Data</label>
+                  <select
+                    value={statusAktif}
+                    onChange={(e) => setStatusAktif(e.target.value as any)}
+                    className="w-full p-2 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white font-medium"
+                  >
+                    <option value="Ya">Aktif (Ya)</option>
+                    <option value="Tidak">Non-Aktif (Tidak)</option>
+                  </select>
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">

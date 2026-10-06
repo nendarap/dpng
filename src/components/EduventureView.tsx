@@ -20,6 +20,7 @@ import { EduventureMapView } from './EduventureMapView';
 import { GoogleCalendarSyncModal } from './GoogleCalendarSyncModal';
 import { EduventureEmailNotificationModal } from './EduventureEmailNotificationModal';
 import { EduventureWhatsAppNotificationModal } from './EduventureWhatsAppNotificationModal';
+import { EduventureExportModal } from './EduventureExportModal';
 import { createGoogleCalendarUrl } from '../services/googleCalendarService';
 import { 
   sendEduventureWhatsAppNotification, 
@@ -112,6 +113,7 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
   // Modals
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isGoogleCalendarModalOpen, setIsGoogleCalendarModalOpen] = useState(false);
   const [selectedBookingForCalendar, setSelectedBookingForCalendar] = useState<EduventureBooking | null>(null);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
@@ -665,12 +667,13 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
 
             <button
               type="button"
-              onClick={handleExportCSV}
-              className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-medium border border-white/15 transition-colors"
-              title="Export Rekap Eduventure ke CSV"
+              id="btn-export-eduventure"
+              onClick={() => setIsExportModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md hover:shadow-lg transition-all duration-150 transform hover:-translate-y-0.5 border border-emerald-400/40 cursor-pointer"
+              title="Export & Rekapitulasi Data Eduventure (Excel, CSV, Cetak Laporan)"
             >
-              <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">Export CSV</span>
+              <Download className="w-4 h-4 text-emerald-200" />
+              <span>Export Data Eduventure</span>
             </button>
           </div>
         </div>
@@ -945,7 +948,7 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
           onEditBooking={handleOpenEdit}
           onAddNewBooking={() => handleOpenAdd()}
           onSwitchViewMode={(mode) => setViewMode(mode)}
-          onExportCSV={handleExportCSV}
+          onExportCSV={() => setIsExportModalOpen(true)}
           userRole={userRole}
         />
       ) : viewMode === 'calendar' ? (
@@ -2485,6 +2488,15 @@ export const EduventureView: React.FC<EduventureViewProps> = ({
           onSaveEduventure(updated);
         }}
       />
+
+      {/* Modal Export Data Eduventure */}
+      {isExportModalOpen && (
+        <EduventureExportModal
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          eduventureList={eduventureList}
+        />
+      )}
     </div>
   );
 };

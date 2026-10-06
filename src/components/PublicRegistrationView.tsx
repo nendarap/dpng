@@ -317,6 +317,15 @@ export const PublicRegistrationView: React.FC<PublicRegistrationViewProps> = ({
     return map;
   }, [programList, kategoriList, currentSettings, allPesertaList]);
 
+  // Filter Kategori Program: Sembunyikan kategori jika status pendaftaran ditutup atau non-aktif (Hide Kategori Program Jika Status Pendaftaran Ditutup)
+  const availableKategoriList = useMemo(() => {
+    return kategoriList.filter(k => 
+      k.statusPendaftaranKategori !== 'Tutup' && 
+      k.statusAktif !== 'Tidak' && 
+      k.statusAktif !== false
+    );
+  }, [kategoriList]);
+
   // Selected Category Object & its admin status
   const selectedKategoriObj = useMemo(() => {
     if (!selectedKategori) return null;
@@ -324,8 +333,24 @@ export const PublicRegistrationView: React.FC<PublicRegistrationViewProps> = ({
   }, [kategoriList, selectedKategori]);
 
   const isSelectedCategoryClosed = useMemo(() => {
-    return selectedKategoriObj?.statusPendaftaranKategori === 'Tutup';
+    if (!selectedKategoriObj) return false;
+    return (
+      selectedKategoriObj.statusPendaftaranKategori === 'Tutup' || 
+      selectedKategoriObj.statusAktif === 'Tidak' || 
+      selectedKategoriObj.statusAktif === false
+    );
   }, [selectedKategoriObj]);
+
+  // Otomatis reset kategori terpilih jika status pendaftaran kategori tersebut ditutup atau non-aktif oleh Admin
+  useEffect(() => {
+    if (selectedKategori) {
+      const kat = kategoriList.find(k => k.namaKategori === selectedKategori || k.idKategori === selectedKategori);
+      if (kat && (kat.statusPendaftaranKategori === 'Tutup' || kat.statusAktif === 'Tidak' || kat.statusAktif === false)) {
+        setSelectedKategori('');
+        setSelectedProgramId('');
+      }
+    }
+  }, [selectedKategori, kategoriList]);
 
   // Selected Program Object & its admin status
   const selectedProgramObj = useMemo(() => {
@@ -337,12 +362,36 @@ export const PublicRegistrationView: React.FC<PublicRegistrationViewProps> = ({
     return programStatusMap.get(getProgId(selectedProgramObj)) || checkProgramRegistrationStatus(selectedProgramObj, selectedKategoriObj || undefined, currentSettings, allPesertaList);
   }, [selectedProgramObj, selectedKategoriObj, programStatusMap, currentSettings, allPesertaList]);
 
-  // Filtered Programs based on selected category and admin open/closed settings
+  // Otomatis reset program terpilih jika status pendaftaran program tersebut ditutup oleh Admin saat mode filter hanya buka aktif
+  useEffect(() => {
+    if (selectedProgramId) {
+      const stat = programStatusMap.get(selectedProgramId);
+      if (stat && !stat.isOpen && filterHanyaBuka) {
+        setSelectedProgramId('');
+      }
+    }
+  }, [selectedProgramId, programStatusMap, filterHanyaBuka]);
+
+  // Filtered Programs based on selected category and admin open/closed settings (sembunyikan program jika kategori ditutup)
   const filteredPrograms = useMemo(() => {
-    let list = programList;
+    let list = programList.filter(p => {
+      // 1. Sembunyikan program dari publik jika kategori program tersebut ditutup atau non-aktif
+      const kat = kategoriList.find(k => k.idKategori === p.idKategori || k.namaKategori === getProgKategori(p));
+      if (kat && (kat.statusPendaftaranKategori === 'Tutup' || kat.statusAktif === 'Tidak' || kat.statusAktif === false)) {
+        return false;
+      }
+      // 2. Sembunyikan jika program non-aktif
+      if (p.statusAktif === 'Tidak' || p.statusAktif === false) {
+        return false;
+      }
+      return true;
+    });
+
     if (selectedKategori) {
       list = list.filter(p => getProgKategori(p) === selectedKategori || p.idKategori === selectedKategori);
     }
+    
+    // Sesuaikan pilihan program pelatihan dengan pengaturan pada Admin (hanya tampilkan program yang sedang buka pendaftaran)
     if (filterHanyaBuka) {
       list = list.filter(p => {
         const stat = programStatusMap.get(getProgId(p));
@@ -352,15 +401,18 @@ export const PublicRegistrationView: React.FC<PublicRegistrationViewProps> = ({
     return list;
   }, [programList, selectedKategori, kategoriList, filterHanyaBuka, programStatusMap]);
 
-  // Total Open Programs Count
+  // Total Open Programs Count (hanya hitung dari kategori yang dibuka)
   const openProgramsCount = useMemo(() => {
     let count = 0;
     programList.forEach(p => {
+      const kat = kategoriList.find(k => k.idKategori === p.idKategori || k.namaKategori === getProgKategori(p));
+      if (kat && (kat.statusPendaftaranKategori === 'Tutup' || kat.statusAktif === 'Tidak' || kat.statusAktif === false)) return;
+      if (p.statusAktif === 'Tidak' || p.statusAktif === false) return;
       const stat = programStatusMap.get(getProgId(p));
       if (stat?.isOpen) count++;
     });
     return count;
-  }, [programList, programStatusMap]);
+  }, [programList, kategoriList, programStatusMap]);
 
   // Whether registration submission is blocked by admin rules
   const isRegistrationBlocked = useMemo(() => {
@@ -974,15 +1026,14 @@ export const PublicRegistrationView: React.FC<PublicRegistrationViewProps> = ({
                           }}
                           className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#002B66] focus:outline-hidden font-medium"
                         >
-                          <option value="">-- Semua Kategori Program --</option>
-                          {kategoriList.map(k => {
-                            const isCatClosed = k.statusPendaftaranKategori === 'Tutup';
-                            return (
-                              <option key={k.idKategori} value={k.namaKategori}>
-                                {k.namaKategori} {isCatClosed ? '🔴 (Pendaftaran Ditutup)' : ''}
-                              </option>
-                            );
-                          })}
+                          <option value="">
+                            {availableKategoriList.length > 0 ? '-- Semua Kategori Program --' : '-- Tidak ada kategori pendaftaran yang dibuka --'}
+                          </option>
+                          {availableKategoriList.map(k => (
+                            <option key={k.idKategori} value={k.namaKategori}>
+                              {k.namaKategori}
+                            </option>
+                          ))}
                         </select>
                       </div>
 
@@ -997,6 +1048,7 @@ export const PublicRegistrationView: React.FC<PublicRegistrationViewProps> = ({
                         </div>
                         <select
                           required
+                          disabled={regConfig.statusPendaftaranGlobal === 'Tutup' || isSelectedCategoryClosed || filteredPrograms.length === 0}
                           value={selectedProgramId}
                           onChange={(e) => {
                             const progId = e.target.value;
@@ -1010,28 +1062,45 @@ export const PublicRegistrationView: React.FC<PublicRegistrationViewProps> = ({
                               : 'border-slate-300'
                           }`}
                         >
-                          <option value="">-- Pilih Program Pelatihan --</option>
+                          <option value="">
+                            {regConfig.statusPendaftaranGlobal === 'Tutup'
+                              ? '-- Pendaftaran Global Ditutup oleh Administrator --'
+                              : filteredPrograms.length === 0
+                                ? '-- Tidak Ada Program yang Membuka Pendaftaran --'
+                                : '-- Pilih Program Pelatihan --'}
+                          </option>
                           {filteredPrograms.map(p => {
                             const pId = getProgId(p);
                             const stat = programStatusMap.get(pId);
                             const isOpen = stat?.isOpen ?? true;
                             const statusLabel = stat?.status || 'Buka';
                             const quotaText = (regConfig.tampilkanSisaKuotaPublik && stat?.sisaKuota !== undefined)
-                              ? ` • Sisa: ${stat.sisaKuota}`
+                              ? ` • Sisa: ${stat.sisaKuota} kursi`
                               : '';
 
                             return (
                               <option 
                                 key={pId} 
                                 value={pId}
-                                className={isOpen ? 'text-slate-900 font-medium' : 'text-slate-400 italic'}
+                                disabled={!isOpen}
+                                className={isOpen ? 'text-slate-900 font-medium' : 'text-slate-400 italic bg-slate-100'}
                               >
-                                {isOpen ? '🟢 [BUKA]' : `🔴 [${statusLabel.toUpperCase()}]`} {p.namaProgram} ({p.durasi || 'Non Gelar'}){quotaText}
+                                {isOpen ? '🟢 [BUKA]' : `🔴 [${statusLabel.toUpperCase()}] (DITUTUP)`} {p.namaProgram} ({p.durasi || 'Non Gelar'}){quotaText}
                               </option>
                             );
                           })}
                         </select>
                       </div>
+
+                      {/* Notice if category selected but has 0 open programs */}
+                      {selectedKategori && filteredPrograms.length === 0 && (
+                        <div className="md:col-span-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span>
+                            Tidak ada program pelatihan yang membuka pendaftaran pada kategori <strong>"{selectedKategori}"</strong> saat ini berdasarkan pengaturan Administrator.
+                          </span>
+                        </div>
+                      )}
 
                       {/* Category Closed Warning Notice */}
                       {isSelectedCategoryClosed && (
