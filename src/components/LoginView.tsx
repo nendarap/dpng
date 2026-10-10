@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Lock, Mail, Eye, EyeOff, ShieldCheck, ArrowRight, 
   CheckCircle2, AlertCircle, GraduationCap, Building2, Sparkles,
-  Megaphone, Info, AlertTriangle, Clock, BarChart3, MapPin, Globe
+  Megaphone, Info, AlertTriangle, Clock, BarChart3, MapPin, Globe, Database
 } from 'lucide-react';
 import { UserItem, LoginSettings } from '../types';
 import { loginUser } from '../services/storageService';
@@ -20,6 +20,7 @@ interface LoginViewProps {
   onOpenPublicDashboard?: () => void;
   onOpenPublicMap?: () => void;
   onOpenPublicPortal?: (initialTab?: 'dashboard' | 'peta' | 'daftar') => void;
+  onOpenInstaller?: () => void;
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({ 
@@ -29,6 +30,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
   onOpenPublicDashboard,
   onOpenPublicMap,
   onOpenPublicPortal,
+  onOpenInstaller,
 }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -540,6 +542,18 @@ export const LoginView: React.FC<LoginViewProps> = ({
           <p className="text-[11px] text-white/60 mt-0.5">
             {loginSettings.footerContactText || 'Gedung Rektorat Unpad Jatinangor, Sumedang, Jawa Barat | Layanan Bantuan: dpng@unpad.ac.id'}
           </p>
+          {onOpenInstaller && (
+            <div className="mt-1 pt-1 border-t border-white/10">
+              <button
+                type="button"
+                onClick={onOpenInstaller}
+                className="inline-flex items-center gap-1.5 text-[11px] text-amber-300 hover:text-amber-200 font-semibold underline underline-offset-2 transition cursor-pointer"
+              >
+                <Database className="w-3 h-3 text-amber-300" />
+                <span>Sistem Installer & Setup Database MySQL</span>
+              </button>
+            </div>
+          )}
         </div>
       </footer>
     </div>

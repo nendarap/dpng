@@ -27,6 +27,7 @@ import { PublicRegistrationView } from './components/PublicRegistrationView';
 import { PublicPortalView } from './components/PublicPortalView';
 import { PengaturanPendaftaranView } from './components/PengaturanPendaftaranView';
 import { ShareRegistrationLinkModal } from './components/ShareRegistrationLinkModal';
+import { InstallerWizard } from './components/InstallerWizard';
 
 import { 
   Peserta, Kategori, Program, PicProgram, UserItem, LogAktivitas, SettingApp, UserRole,
@@ -82,9 +83,19 @@ export default function App() {
   // Modal / Selection States
   const [detailPeserta, setDetailPeserta] = useState<Peserta | null>(null);
   const [editPeserta, setEditPeserta] = useState<Peserta | null>(null);
-  const [detailModalTab, setDetailModalTab] = useState<'biodata' | 'program' | 'dokumen' | 'cetak'>('biodata');
+  const [detailModalTab, setDetailModalTab] = useState<'biodata' | 'program' | 'dokumen' | 'cetak' | 'audit'>('biodata');
   const [pesertaListInitialFilter, setPesertaListInitialFilter] = useState<{ statusVerifikasi?: string; statusPeserta?: string; instansi?: string } | null>(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isInstallerModalOpen, setIsInstallerModalOpen] = useState<boolean>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const mode = params.get('mode') || params.get('view');
+      const hash = window.location.hash;
+      return mode === 'installer' || hash === '#installer';
+    } catch {
+      return false;
+    }
+  });
 
   // Public Portal Mode State: 'dashboard' | 'peta' | 'daftar' | null
   const [publicPortalMode, setPublicPortalMode] = useState<'dashboard' | 'peta' | 'daftar' | null>(() => {
@@ -558,7 +569,22 @@ export default function App() {
           onOpenPublicDashboard={() => setPublicPortalMode('dashboard')}
           onOpenPublicMap={() => setPublicPortalMode('peta')}
           onOpenPublicPortal={(tab = 'dashboard') => setPublicPortalMode(tab)}
+          onOpenInstaller={() => setIsInstallerModalOpen(true)}
         />
+
+        {/* Installer Modal Overlay */}
+        {isInstallerModalOpen && (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-sm p-4 flex items-center justify-center animate-in fade-in">
+            <InstallerWizard
+              isModal={true}
+              onClose={() => setIsInstallerModalOpen(false)}
+              onInstallationComplete={(res) => {
+                showToast(`Instalasi basis data MySQL '${res.databaseName}' berhasil!`);
+                refreshAllData();
+              }}
+            />
+          </div>
+        )}
         
         {/* Floating Toast Notification */}
         {toast && (
@@ -636,6 +662,7 @@ export default function App() {
           onCloseMobile={() => setIsSidebarOpen(false)}
           onLogout={handleLogout}
           onOpenSheetModal={() => setIsSheetModalOpen(true)}
+          onOpenInstaller={() => setIsInstallerModalOpen(true)}
           currentTheme={currentTheme}
           onOpenPublicPortal={(tab) => setPublicPortalMode(tab || 'dashboard')}
         />
@@ -716,6 +743,10 @@ export default function App() {
                   }}
                   onViewVerification={(p) => {
                     setDetailModalTab('dokumen');
+                    setDetailPeserta(p);
+                  }}
+                  onViewAuditTrail={(p) => {
+                    setDetailModalTab('audit');
                     setDetailPeserta(p);
                   }}
                   onEditPeserta={(p) => {
@@ -864,7 +895,14 @@ export default function App() {
                   kategoriList={kategoriList}
                   programList={programList}
                   userRole={currentUser.role}
-                  onViewDetail={(p) => setDetailPeserta(p)}
+                  onViewDetail={(p) => {
+                    setDetailModalTab('biodata');
+                    setDetailPeserta(p);
+                  }}
+                  onViewAuditTrail={(p) => {
+                    setDetailModalTab('audit');
+                    setDetailPeserta(p);
+                  }}
                   onEditPeserta={(p) => {
                     setEditPeserta(p);
                     setActiveTab('tambah');
@@ -943,6 +981,7 @@ export default function App() {
                   onOpenGasModal={() => setIsGasModalOpen(true)}
                   onOpenSheetModal={() => setIsSheetModalOpen(true)}
                   onNavigateToBackupRestore={() => setActiveTab('backup_restore')}
+                  onOpenInstallerModal={() => setIsInstallerModalOpen(true)}
                   isAdmin={currentUser.role === 'ADMIN'}
                 />
               )}
@@ -1001,6 +1040,20 @@ export default function App() {
         programList={programList}
         kategoriList={kategoriList}
       />
+
+      {/* Installer Modal Overlay */}
+      {isInstallerModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-sm p-4 flex items-center justify-center animate-in fade-in">
+          <InstallerWizard
+            isModal={true}
+            onClose={() => setIsInstallerModalOpen(false)}
+            onInstallationComplete={(res) => {
+              showToast(`Instalasi basis data MySQL '${res.databaseName}' berhasil!`);
+              refreshAllData();
+            }}
+          />
+        </div>
+      )}
 
       {/* Floating Toast Notification */}
       {toast && (

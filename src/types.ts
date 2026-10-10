@@ -353,6 +353,48 @@ export interface LogAktivitas {
   ipUserAgent: string;
 }
 
+export type ParticipantAuditAction = 
+  | 'CREATE' 
+  | 'UPDATE' 
+  | 'VERIFY' 
+  | 'STATUS_CHANGE' 
+  | 'EVALUATION' 
+  | 'DOCUMENT_UPLOAD' 
+  | 'DOCUMENT_VERIFY' 
+  | 'CERTIFICATE_ISSUED' 
+  | 'MANUAL_NOTE' 
+  | 'ARCHIVE'
+  | 'RESTORE' 
+  | 'DELETE';
+
+export interface ParticipantFieldChange {
+  field: string;
+  label: string;
+  oldValue: unknown;
+  newValue: unknown;
+  category?: 'biodata' | 'program' | 'verifikasi' | 'sertifikat' | 'status' | 'dokumen' | 'keuangan';
+}
+
+export interface ParticipantAuditEntry {
+  id: string;
+  pesertaId: string;
+  nomorRegistrasi?: string;
+  namaLengkap?: string;
+  action: ParticipantAuditAction;
+  actionTitle: string;
+  summary: string;
+  timestamp: string;
+  actor: {
+    email: string;
+    nama?: string;
+    role?: string;
+    ipUserAgent?: string;
+  };
+  changes?: ParticipantFieldChange[];
+  snapshot?: Partial<Peserta>;
+  metadata?: Record<string, unknown>;
+}
+
 export type LoginBgType = 'preset' | 'custom' | 'gradient';
 
 export interface LoginPresetBackground {

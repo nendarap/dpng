@@ -3,11 +3,12 @@ import {
   Settings, Save, Database, RefreshCw, CheckCircle2, 
   AlertTriangle, Shield, Globe, FileCode, Sliders, Image as ImageIcon,
   DatabaseBackup, Download, ExternalLink, FileSpreadsheet, Link2,
-  Clock, Lock, ShieldCheck, User, Calendar
+  Clock, Lock, ShieldCheck, User, Calendar, Sparkles
 } from 'lucide-react';
 import { SettingApp, LoginSettings, SessionConfig, LoginSession } from '../types';
 import { UnpadLogo } from './UnpadLogo';
 import { LoginSettingsTab } from './LoginSettingsTab';
+import { MysqlInstallerTab } from './MysqlInstallerTab';
 import { DEFAULT_LOGIN_SETTINGS } from '../data/loginPresets';
 import { 
   generateSystemBackup, 
@@ -26,6 +27,7 @@ interface PengaturanViewProps {
   onOpenGasModal: () => void;
   onOpenSheetModal?: () => void;
   onNavigateToBackupRestore?: () => void;
+  onOpenInstallerModal?: () => void;
   isAdmin?: boolean;
 }
 
@@ -36,9 +38,10 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
   onOpenGasModal,
   onOpenSheetModal,
   onNavigateToBackupRestore,
+  onOpenInstallerModal,
   isAdmin = true,
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'system' | 'login' | 'session'>('system');
+  const [activeSubTab, setActiveSubTab] = useState<'system' | 'login' | 'session' | 'mysql'>('system');
   const [formData, setFormData] = useState<SettingApp>({ 
     ...settings,
     loginSettings: settings.loginSettings || DEFAULT_LOGIN_SETTINGS
@@ -167,9 +170,27 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
           <Clock className="w-4 h-4 text-emerald-600" />
           <span>Manajemen Sesi Login</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('mysql')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+            activeSubTab === 'mysql'
+              ? 'border-[#002B66] text-[#002B66]'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Database className="w-4 h-4 text-blue-600" />
+          <span>Database & Installer MySQL</span>
+          <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full">
+            MySQL
+          </span>
+        </button>
       </div>
 
-      {activeSubTab === 'session' ? (
+      {activeSubTab === 'mysql' ? (
+        <MysqlInstallerTab onOpenInstallerModal={onOpenInstallerModal || (() => {})} />
+      ) : activeSubTab === 'session' ? (
         <div className="space-y-6 text-xs">
           {/* Active Session Status Card */}
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-4">

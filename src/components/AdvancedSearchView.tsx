@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Search, RotateCcw, Download, Eye, Edit2, Filter, 
-  Layers, Calendar, Briefcase, Award, CheckCircle2
+  Layers, Calendar, Briefcase, Award, CheckCircle2, History
 } from 'lucide-react';
 import { Peserta, Kategori, Program, UserRole, AdvancedSearchFilter } from '../types';
 import { advancedSearchPeserta } from '../services/storageService';
@@ -11,6 +11,7 @@ interface AdvancedSearchViewProps {
   programList: Program[];
   userRole: UserRole;
   onViewDetail: (peserta: Peserta) => void;
+  onViewAuditTrail?: (peserta: Peserta) => void;
   onEditPeserta: (peserta: Peserta) => void;
 }
 
@@ -19,6 +20,7 @@ export const AdvancedSearchView: React.FC<AdvancedSearchViewProps> = ({
   programList,
   userRole,
   onViewDetail,
+  onViewAuditTrail,
   onEditPeserta,
 }) => {
   const [filters, setFilters] = useState<Partial<AdvancedSearchFilter>>({
@@ -383,6 +385,13 @@ export const AdvancedSearchView: React.FC<AdvancedSearchViewProps> = ({
                           title="Lihat Detail"
                         >
                           <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => onViewAuditTrail ? onViewAuditTrail(p) : onViewDetail(p)}
+                          className="p-1 text-indigo-600 hover:bg-indigo-50 rounded"
+                          title="Audit Trail / Riwayat Perubahan"
+                        >
+                          <History className="w-4 h-4" />
                         </button>
                         {userRole !== 'VIEWER' && (
                           <button

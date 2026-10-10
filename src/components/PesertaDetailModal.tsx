@@ -4,10 +4,11 @@ import {
   Briefcase, GraduationCap, Award, Calendar, DollarSign, 
   MapPin, ShieldCheck, QrCode, FileText, Eye, Check, 
   AlertTriangle, FileCheck, ExternalLink, Download, Image as ImageIcon,
-  Clock, ShieldAlert, Sparkles
+  Clock, ShieldAlert, Sparkles, FileClock
 } from 'lucide-react';
 import { Peserta, UserRole, PicProgram, DokumenPendaftaranItem, StatusVerifikasiPendaftaran } from '../types';
 import { verifyPesertaPendaftaran } from '../services/storageService';
+import { ParticipantAuditTrail } from './ParticipantAuditTrail';
 
 interface PesertaDetailModalProps {
   peserta: Peserta | null;
@@ -17,7 +18,7 @@ interface PesertaDetailModalProps {
   userRole: UserRole;
   picList?: PicProgram[];
   onRefreshData?: () => void;
-  initialTab?: 'biodata' | 'program' | 'dokumen' | 'cetak';
+  initialTab?: 'biodata' | 'program' | 'dokumen' | 'cetak' | 'audit';
 }
 
 export const PesertaDetailModal: React.FC<PesertaDetailModalProps> = ({
@@ -30,7 +31,7 @@ export const PesertaDetailModal: React.FC<PesertaDetailModalProps> = ({
   onRefreshData,
   initialTab = 'biodata',
 }) => {
-  const [activeTab, setActiveTab] = useState<'biodata' | 'program' | 'dokumen' | 'cetak'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'biodata' | 'program' | 'dokumen' | 'cetak' | 'audit'>(initialTab);
   const [previewDocModal, setPreviewDocModal] = useState<{ title: string; doc: DokumenPendaftaranItem } | null>(null);
 
   // Local state for verification form
@@ -204,6 +205,17 @@ export const PesertaDetailModal: React.FC<PesertaDetailModalProps> = ({
             }`}
           >
             Lembar Verifikasi Resmi (KOP Unpad)
+          </button>
+          <button
+            onClick={() => setActiveTab('audit')}
+            className={`py-3 px-4 border-b-2 transition-all flex items-center gap-1.5 whitespace-nowrap ${
+              activeTab === 'audit' 
+                ? 'border-[#002B66] text-[#002B66] font-extrabold' 
+                : 'border-transparent hover:text-slate-900'
+            }`}
+          >
+            <FileClock className="w-3.5 h-3.5 text-[#002B66]" />
+            <span>Audit Trail (Riwayat Perubahan)</span>
           </button>
         </div>
 
@@ -1028,6 +1040,14 @@ export const PesertaDetailModal: React.FC<PesertaDetailModalProps> = ({
                 </div>
               </div>
             </div>
+          )}
+
+          {activeTab === 'audit' && (
+            <ParticipantAuditTrail 
+              peserta={peserta} 
+              userRole={userRole} 
+              onRefreshParent={onRefreshData} 
+            />
           )}
         </div>
       </div>

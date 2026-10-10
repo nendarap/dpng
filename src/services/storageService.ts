@@ -4,7 +4,8 @@ import {
   GroupAkun, MenuPrivilege, AppMenuItemDef, AppThemeId, LoginSettings,
   SimpendikBackupPayload, SimpendikBackupData, SimpendikBackupSummary,
   BackupSnapshotItem, RestoreMode, Pegawai, LoginSession, SessionConfig,
-  StatusVerifikasiPendaftaran, PengaturanPendaftaran
+  StatusVerifikasiPendaftaran, PengaturanPendaftaran,
+  ParticipantAuditEntry, ParticipantFieldChange, ParticipantAuditAction
 } from '../types';
 import { 
   DEFAULT_KATEGORI, DEFAULT_PROGRAM, DEFAULT_PESERTA, 
@@ -37,6 +38,7 @@ const STORAGE_KEYS = {
   SNAPSHOTS: 'simpendik_unpad_snapshots',
   ACTIVE_SESSION: 'simpendik_unpad_active_session',
   SESSION_CONFIG: 'simpendik_unpad_session_config',
+  PARTICIPANT_AUDIT: 'simpendik_unpad_participant_audit',
 };
 
 // Inisialisasi awal ke localStorage jika kosong
@@ -698,6 +700,273 @@ export function getLogs(): LogAktivitas[] {
   initLocalStorage();
   const raw = safeGetItem(STORAGE_KEYS.LOGS);
   return raw ? JSON.parse(raw) : [];
+}
+
+// ==========================================
+// PARTICIPANT AUDIT TRAIL SERVICE
+// ==========================================
+
+export const PARTICIPANT_FIELD_LABELS: Record<string, { label: string; category: ParticipantFieldChange['category'] }> = {
+  namaLengkap: { label: 'Nama Lengkap', category: 'biodata' },
+  gelarDepan: { label: 'Gelar Depan', category: 'biodata' },
+  gelarBelakang: { label: 'Gelar Belakang', category: 'biodata' },
+  nik: { label: 'NIK / No. KTP', category: 'biodata' },
+  nip: { label: 'NIP Pegawai', category: 'biodata' },
+  jenisKelamin: { label: 'Jenis Kelamin', category: 'biodata' },
+  tempatLahir: { label: 'Tempat Lahir', category: 'biodata' },
+  tanggalLahir: { label: 'Tanggal Lahir', category: 'biodata' },
+  email: { label: 'Alamat Email', category: 'biodata' },
+  nomorHp: { label: 'Nomor WhatsApp / HP', category: 'biodata' },
+  instansi: { label: 'Instansi / Asal Lembaga', category: 'biodata' },
+  jabatan: { label: 'Jabatan / Posisi', category: 'biodata' },
+  fakultasUnit: { label: 'Fakultas / Unit Kerja', category: 'biodata' },
+  pendidikanTerakhir: { label: 'Pendidikan Terakhir', category: 'biodata' },
+  provinsi: { label: 'Provinsi', category: 'biodata' },
+  kotaKabupaten: { label: 'Kota / Kabupaten', category: 'biodata' },
+  alamat: { label: 'Alamat Lengkap', category: 'biodata' },
+  idKategori: { label: 'Kategori Program', category: 'program' },
+  kategoriProgram: { label: 'Nama Kategori Program', category: 'program' },
+  idProgram: { label: 'ID Program Pelatihan', category: 'program' },
+  namaProgram: { label: 'Nama Program Pelatihan', category: 'program' },
+  angkatanBatch: { label: 'Angkatan / Batch', category: 'program' },
+  tahun: { label: 'Tahun Pelaksanaan', category: 'program' },
+  tanggalMulai: { label: 'Tanggal Mulai', category: 'program' },
+  tanggalSelesai: { label: 'Tanggal Selesai', category: 'program' },
+  biayaProgram: { label: 'Biaya Program (Rp)', category: 'keuangan' },
+  sumberDana: { label: 'Sumber Pendanaan', category: 'keuangan' },
+  idPic: { label: 'ID PIC Narahubung', category: 'program' },
+  pic: { label: 'PIC Narahubung Program', category: 'program' },
+  statusPeserta: { label: 'Status Peserta', category: 'status' },
+  statusKelulusan: { label: 'Status Kelulusan', category: 'status' },
+  statusData: { label: 'Status Data (Aktif/Arsip)', category: 'status' },
+  statusVerifikasi: { label: 'Status Verifikasi Berkas', category: 'verifikasi' },
+  catatanVerifikasi: { label: 'Catatan Verifikasi', category: 'verifikasi' },
+  verifikatorNama: { label: 'Nama Petugas Verifikator', category: 'verifikasi' },
+  verifikatorRole: { label: 'Role Verifikator', category: 'verifikasi' },
+  nomorSertifikat: { label: 'Nomor Sertifikat Kelulusan', category: 'sertifikat' },
+  tanggalSertifikat: { label: 'Tanggal Terbit Sertifikat', category: 'sertifikat' },
+  nilaiSkor: { label: 'Nilai Akhir / Skor Kelulusan', category: 'sertifikat' },
+  keterangan: { label: 'Keterangan Tambahan', category: 'biodata' },
+};
+
+export function getAllParticipantAudits(): ParticipantAuditEntry[] {
+  initLocalStorage();
+  const raw = safeGetItem(STORAGE_KEYS.PARTICIPANT_AUDIT);
+  return raw ? JSON.parse(raw) : [];
+}
+
+export function recordParticipantAudit(
+  entry: Omit<ParticipantAuditEntry, 'id' | 'timestamp' | 'actor'> & { 
+    timestamp?: string;
+    actor?: {
+      email?: string;
+      nama?: string;
+      role?: string;
+      ipUserAgent?: string;
+    };
+  }
+): ParticipantAuditEntry {
+  const currentUser = getCurrentUser();
+  const now = new Date();
+  const dateStr = entry.timestamp || now.toISOString().replace('T', ' ').substring(0, 19);
+
+  const newEntry: ParticipantAuditEntry = {
+    id: 'ADT-' + Date.now().toString(36).toUpperCase() + '-' + Math.floor(1000 + Math.random() * 9000),
+    timestamp: dateStr,
+    pesertaId: entry.pesertaId,
+    nomorRegistrasi: entry.nomorRegistrasi,
+    namaLengkap: entry.namaLengkap,
+    action: entry.action,
+    actionTitle: entry.actionTitle,
+    summary: entry.summary,
+    actor: {
+      email: entry.actor?.email || currentUser.email || 'system@unpad.ac.id',
+      nama: entry.actor?.nama || currentUser.nama || 'Petugas SIMPENDIK',
+      role: entry.actor?.role || currentUser.role || 'OPERATOR',
+      ipUserAgent: entry.actor?.ipUserAgent || '103.24.58.12 (Browser Session)'
+    },
+    changes: entry.changes || [],
+    snapshot: entry.snapshot,
+    metadata: entry.metadata,
+  };
+
+  const all = getAllParticipantAudits();
+  all.unshift(newEntry);
+  if (all.length > 300) all.length = 300;
+  safeSetItem(STORAGE_KEYS.PARTICIPANT_AUDIT, JSON.stringify(all));
+
+  // Mirror into general logging service so it appears in system log too
+  writeLog(newEntry.actionTitle, 'PESERTA', newEntry.pesertaId, newEntry.summary);
+
+  return newEntry;
+}
+
+export function getParticipantAuditTrail(pesertaId: string): ParticipantAuditEntry[] {
+  initLocalStorage();
+  const allAudits = getAllParticipantAudits().filter(a => a.pesertaId === pesertaId);
+  
+  // Also scan system logs for any matching logs
+  const systemLogs = getLogs().filter(l => 
+    l.modul === 'PESERTA' && (l.idData === pesertaId || (l.keterangan && l.keterangan.includes(pesertaId)))
+  );
+
+  const existingLogSignatures = new Set(allAudits.map(a => `${a.timestamp.substring(0, 16)}_${a.actionTitle}`));
+  const merged: ParticipantAuditEntry[] = [...allAudits];
+
+  // Look up current participant data
+  const currentPeserta = getPeserta().find(p => p.id === pesertaId);
+
+  // Convert system logs to audit entries if not duplicate
+  for (const log of systemLogs) {
+    const signature = `${log.timestamp.substring(0, 16)}_${log.aktivitas}`;
+    if (!existingLogSignatures.has(signature)) {
+      existingLogSignatures.add(signature);
+      let actionType: ParticipantAuditAction = 'UPDATE';
+      const akt = log.aktivitas.toUpperCase();
+      if (akt.includes('TAMBAH') || akt.includes('REGISTRASI')) actionType = 'CREATE';
+      else if (akt.includes('VERIFIKASI')) actionType = 'VERIFY';
+      else if (akt.includes('STATUS')) actionType = 'STATUS_CHANGE';
+      else if (akt.includes('HAPUS')) actionType = 'DELETE';
+
+      merged.push({
+        id: `SYS-${log.id}`,
+        pesertaId,
+        nomorRegistrasi: currentPeserta?.nomorRegistrasi,
+        namaLengkap: currentPeserta?.namaLengkap,
+        action: actionType,
+        actionTitle: log.aktivitas,
+        summary: log.keterangan,
+        timestamp: log.timestamp,
+        actor: {
+          email: log.user,
+          nama: log.user.split('@')[0],
+          role: 'SYSTEM_LOG',
+          ipUserAgent: log.ipUserAgent
+        }
+      });
+    }
+  }
+
+  // If no initial registration entry exists, synthesize baseline from peserta record
+  if (currentPeserta) {
+    const hasCreate = merged.some(m => 
+      m.action === 'CREATE' || 
+      m.actionTitle.toLowerCase().includes('tambah') || 
+      m.actionTitle.toLowerCase().includes('registrasi')
+    );
+
+    if (!hasCreate && currentPeserta.createdAt) {
+      merged.push({
+        id: `INIT-${currentPeserta.id}`,
+        pesertaId: currentPeserta.id,
+        nomorRegistrasi: currentPeserta.nomorRegistrasi,
+        namaLengkap: currentPeserta.namaLengkap,
+        action: 'CREATE',
+        actionTitle: 'Registrasi Awal Peserta',
+        summary: `Pendaftaran awal peserta ${currentPeserta.namaLengkap} pada program ${currentPeserta.namaProgram} (Batch ${currentPeserta.angkatanBatch || '1'})`,
+        timestamp: currentPeserta.createdAt,
+        actor: {
+          email: currentPeserta.createdBy || 'portal.publik@unpad.ac.id',
+          nama: currentPeserta.createdBy || 'Sistem Pendaftaran Publik',
+          role: 'REGISTRAR',
+        },
+        changes: [
+          { field: 'namaLengkap', label: 'Nama Lengkap', oldValue: '-', newValue: currentPeserta.namaLengkap, category: 'biodata' },
+          { field: 'namaProgram', label: 'Nama Program', oldValue: '-', newValue: currentPeserta.namaProgram, category: 'program' },
+          { field: 'statusPeserta', label: 'Status Peserta', oldValue: '-', newValue: currentPeserta.statusPeserta, category: 'status' },
+          { field: 'statusVerifikasi', label: 'Status Verifikasi', oldValue: '-', newValue: currentPeserta.statusVerifikasi || 'Menunggu Verifikasi', category: 'verifikasi' },
+        ]
+      });
+    }
+
+    // If verification was completed and no verify entry exists
+    if (currentPeserta.tanggalVerifikasi && currentPeserta.statusVerifikasi) {
+      const hasVerify = merged.some(m => 
+        m.action === 'VERIFY' || 
+        m.actionTitle.toLowerCase().includes('verifikasi')
+      );
+      if (!hasVerify) {
+        merged.push({
+          id: `VERIF-${currentPeserta.id}`,
+          pesertaId: currentPeserta.id,
+          nomorRegistrasi: currentPeserta.nomorRegistrasi,
+          namaLengkap: currentPeserta.namaLengkap,
+          action: 'VERIFY',
+          actionTitle: 'Verifikasi Dokumen Pendaftaran',
+          summary: `Status verifikasi berkas diubah menjadi "${currentPeserta.statusVerifikasi}". Catatan: ${currentPeserta.catatanVerifikasi || 'Berkas valid dan lengkap.'}`,
+          timestamp: currentPeserta.tanggalVerifikasi,
+          actor: {
+            email: currentPeserta.verifikatorNama || 'verifikator@unpad.ac.id',
+            nama: currentPeserta.verifikatorNama || 'Tim Verifikator DPNG',
+            role: currentPeserta.verifikatorRole || 'VERIFIER',
+          },
+          changes: [
+            { field: 'statusVerifikasi', label: 'Status Verifikasi', oldValue: 'Menunggu Verifikasi', newValue: currentPeserta.statusVerifikasi, category: 'verifikasi' },
+            ...(currentPeserta.catatanVerifikasi ? [{ field: 'catatanVerifikasi', label: 'Catatan Verifikasi', oldValue: '-', newValue: currentPeserta.catatanVerifikasi, category: 'verifikasi' as const }] : [])
+          ]
+        });
+      }
+    }
+
+    // If certificate issued
+    if (currentPeserta.nomorSertifikat && currentPeserta.tanggalSertifikat) {
+      const hasCert = merged.some(m => 
+        m.action === 'CERTIFICATE_ISSUED' || 
+        m.actionTitle.toLowerCase().includes('sertifikat')
+      );
+      if (!hasCert) {
+        merged.push({
+          id: `CERT-${currentPeserta.id}`,
+          pesertaId: currentPeserta.id,
+          nomorRegistrasi: currentPeserta.nomorRegistrasi,
+          namaLengkap: currentPeserta.namaLengkap,
+          action: 'CERTIFICATE_ISSUED',
+          actionTitle: 'Penerbitan Sertifikat Kelulusan',
+          summary: `Sertifikat resmi kelulusan diterbitkan dengan nomor ${currentPeserta.nomorSertifikat} (Nilai: ${currentPeserta.nilaiSkor || '-'})`,
+          timestamp: currentPeserta.tanggalSertifikat.length === 10 ? `${currentPeserta.tanggalSertifikat} 09:00:00` : currentPeserta.tanggalSertifikat,
+          actor: {
+            email: currentPeserta.updatedBy || 'admin.sertifikasi@unpad.ac.id',
+            nama: 'Subdit Sertifikasi & Kurikulum DPNG',
+            role: 'ADMIN',
+          },
+          changes: [
+            { field: 'nomorSertifikat', label: 'Nomor Sertifikat', oldValue: '-', newValue: currentPeserta.nomorSertifikat, category: 'sertifikat' },
+            { field: 'statusKelulusan', label: 'Status Kelulusan', oldValue: 'Dalam Proses', newValue: currentPeserta.statusKelulusan || 'Lulus', category: 'status' },
+          ]
+        });
+      }
+    }
+  }
+
+  // Sort descending by timestamp
+  return merged.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+}
+
+export function addManualAuditNote(
+  pesertaId: string, 
+  note: string, 
+  actorCustom?: { name?: string; role?: string }
+): ParticipantAuditEntry {
+  const currentPeserta = getPeserta().find(p => p.id === pesertaId);
+  const currentUser = getCurrentUser();
+  
+  return recordParticipantAudit({
+    pesertaId,
+    nomorRegistrasi: currentPeserta?.nomorRegistrasi,
+    namaLengkap: currentPeserta?.namaLengkap,
+    action: 'MANUAL_NOTE',
+    actionTitle: 'Catatan Audit Manual',
+    summary: note.trim(),
+    actor: {
+      email: currentUser.email,
+      nama: actorCustom?.name || currentUser.nama,
+      role: actorCustom?.role || currentUser.role,
+      ipUserAgent: '103.24.58.12 (Browser Session)'
+    },
+    changes: [
+      { field: 'catatanAudit', label: 'Catatan Pengawas/Pemeriksa', oldValue: '-', newValue: note.trim(), category: 'verifikasi' }
+    ]
+  });
 }
 
 // Settings
@@ -1639,7 +1908,22 @@ export function createPeserta(
 
   list.unshift(newPeserta);
   localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(list));
-  writeLog('Tambah Peserta', 'PESERTA', newId, `Registrasi peserta ${newPeserta.namaLengkap} (${newPeserta.namaProgram})`);
+  
+  recordParticipantAudit({
+    pesertaId: newId,
+    nomorRegistrasi: newPeserta.nomorRegistrasi,
+    namaLengkap: newPeserta.namaLengkap,
+    action: 'CREATE',
+    actionTitle: 'Registrasi Peserta Baru',
+    summary: `Registrasi peserta baru: ${newPeserta.namaLengkap} pada program ${newPeserta.namaProgram} (${newPeserta.kategoriProgram})`,
+    changes: [
+      { field: 'namaLengkap', label: 'Nama Lengkap', oldValue: '-', newValue: newPeserta.namaLengkap, category: 'biodata' },
+      { field: 'namaProgram', label: 'Nama Program', oldValue: '-', newValue: newPeserta.namaProgram, category: 'program' },
+      { field: 'statusPeserta', label: 'Status Peserta', oldValue: '-', newValue: newPeserta.statusPeserta, category: 'status' },
+      { field: 'statusVerifikasi', label: 'Status Verifikasi', oldValue: '-', newValue: newPeserta.statusVerifikasi || 'Menunggu Verifikasi', category: 'verifikasi' },
+    ],
+    snapshot: { ...newPeserta }
+  });
 
   return { success: true, message: 'Data peserta berhasil disimpan', data: newPeserta };
 }
@@ -1653,9 +1937,10 @@ export function updatePeserta(id: string, data: Partial<Peserta>): { success: bo
 
   const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
   const currentUser = getCurrentUser().email;
+  const oldItem = list[idx];
 
   const updated: Peserta = {
-    ...list[idx],
+    ...oldItem,
     ...data,
     id,
     updatedAt: now,
@@ -1664,7 +1949,52 @@ export function updatePeserta(id: string, data: Partial<Peserta>): { success: bo
 
   list[idx] = updated;
   localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(list));
-  writeLog('Edit Peserta', 'PESERTA', id, `Update data peserta ${updated.namaLengkap}`);
+
+  // Compute field diffs for audit trail
+  const changes: ParticipantFieldChange[] = [];
+  for (const key of Object.keys(data) as Array<keyof Peserta>) {
+    if (key === 'id' || key === 'updatedAt' || key === 'updatedBy') continue;
+    const oldVal = oldItem[key];
+    const newVal = data[key];
+    if (newVal !== undefined && JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+      const meta = PARTICIPANT_FIELD_LABELS[key as string] || { label: key as string, category: 'biodata' as const };
+      changes.push({
+        field: key as string,
+        label: meta.label,
+        oldValue: oldVal ?? '-',
+        newValue: newVal ?? '-',
+        category: meta.category
+      });
+    }
+  }
+
+  let action: ParticipantAuditAction = 'UPDATE';
+  let actionTitle = 'Pembaruan Data Peserta';
+  if (changes.some(c => c.field === 'statusPeserta' || c.field === 'statusKelulusan')) {
+    action = 'STATUS_CHANGE';
+    actionTitle = 'Perubahan Status Peserta';
+  } else if (changes.some(c => c.field === 'nomorSertifikat' || c.field === 'nilaiSkor')) {
+    action = 'CERTIFICATE_ISSUED';
+    actionTitle = 'Penerbitan Sertifikat / Nilai';
+  } else if (changes.some(c => c.field === 'statusVerifikasi')) {
+    action = 'VERIFY';
+    actionTitle = 'Verifikasi Dokumen';
+  }
+
+  const summary = changes.length > 0
+    ? `Memperbarui ${changes.length} kolom: ${changes.slice(0, 3).map(c => `${c.label} (${String(c.oldValue)} -> ${String(c.newValue)})`).join(', ')}${changes.length > 3 ? '...' : ''}`
+    : `Pembaruan data peserta ${updated.namaLengkap}`;
+
+  recordParticipantAudit({
+    pesertaId: id,
+    nomorRegistrasi: updated.nomorRegistrasi,
+    namaLengkap: updated.namaLengkap,
+    action,
+    actionTitle,
+    summary,
+    changes,
+    snapshot: { ...updated }
+  });
 
   return { success: true, message: 'Data peserta berhasil diperbarui', data: updated };
 }
@@ -1698,12 +2028,27 @@ export function verifyPesertaPendaftaran(
 
   list[idx] = updated;
   localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(list));
-  writeLog(
-    'Verifikasi Berkas',
-    'PESERTA',
-    id,
-    `Verifikasi peserta ${updated.namaLengkap} diubah ke "${statusVerifikasi}" oleh ${verifikatorNama} (${verifikatorRole})`
-  );
+
+  recordParticipantAudit({
+    pesertaId: id,
+    nomorRegistrasi: updated.nomorRegistrasi,
+    namaLengkap: updated.namaLengkap,
+    action: 'VERIFY',
+    actionTitle: 'Verifikasi Dokumen Pendaftaran',
+    summary: `Status verifikasi berkas ${updated.namaLengkap} diubah menjadi "${statusVerifikasi}". Catatan: ${catatanVerifikasi.trim() || 'Berkas valid dan lengkap.'}`,
+    actor: {
+      email: verifikatorNama.includes('@') ? verifikatorNama : 'verifikator@unpad.ac.id',
+      nama: verifikatorNama,
+      role: verifikatorRole,
+      ipUserAgent: '103.24.58.12 (Browser Session)'
+    },
+    changes: [
+      { field: 'statusVerifikasi', label: 'Status Verifikasi Berkas', oldValue: current.statusVerifikasi || 'Menunggu Verifikasi', newValue: statusVerifikasi, category: 'verifikasi' },
+      ...(catatanVerifikasi.trim() ? [{ field: 'catatanVerifikasi', label: 'Catatan Verifikasi', oldValue: current.catatanVerifikasi || '-', newValue: catatanVerifikasi.trim(), category: 'verifikasi' as const }] : []),
+      ...(statusVerifikasi === 'Terverifikasi' && current.statusPeserta !== 'Aktif' ? [{ field: 'statusPeserta', label: 'Status Peserta', oldValue: current.statusPeserta, newValue: 'Aktif', category: 'status' as const }] : []),
+    ],
+    snapshot: { ...updated }
+  });
 
   return { 
     success: true, 

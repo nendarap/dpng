@@ -6,7 +6,7 @@ import {
   Upload, CheckCircle2, X, ChevronDown, Check,
   RefreshCw, FileSpreadsheet, Layers, Filter,
   MapPin, Map as MapIcon, Building2, Users, Share2,
-  ShieldCheck, Clock, FileCheck, Image as ImageIcon
+  ShieldCheck, Clock, FileCheck, Image as ImageIcon, History
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Peserta, UserRole, Kategori, Program, StatusVerifikasiPendaftaran, PicProgram } from '../types';
@@ -19,6 +19,7 @@ interface PesertaListViewProps {
   userRole: UserRole;
   onViewDetail: (peserta: Peserta) => void;
   onViewVerification?: (peserta: Peserta) => void;
+  onViewAuditTrail?: (peserta: Peserta) => void;
   onEditPeserta: (peserta: Peserta) => void;
   onDeletePeserta: (id: string) => void;
   onDeleteMultiplePeserta?: (ids: string[]) => void;
@@ -38,6 +39,7 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
   userRole,
   onViewDetail,
   onViewVerification,
+  onViewAuditTrail,
   onEditPeserta,
   onDeletePeserta,
   onDeleteMultiplePeserta,
@@ -1339,6 +1341,15 @@ export const PesertaListView: React.FC<PesertaListViewProps> = ({
                             title="Lihat Detail Profil & Cetak"
                           >
                             <Eye className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            id={`btn-audit-${p.id}`}
+                            onClick={() => onViewAuditTrail ? onViewAuditTrail(p) : onViewDetail(p)}
+                            className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded cursor-pointer"
+                            title="Audit Trail & Riwayat Perubahan (Who, What, When)"
+                          >
+                            <History className="w-4 h-4" />
                           </button>
 
                           {userRole !== 'VIEWER' && (

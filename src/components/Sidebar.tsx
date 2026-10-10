@@ -45,6 +45,7 @@ interface SidebarProps {
   onCloseMobile: () => void;
   onLogout?: () => void;
   onOpenSheetModal?: () => void;
+  onOpenInstaller?: () => void;
   currentTheme?: AppThemeId;
   onOpenPublicPortal?: (tab?: 'dashboard' | 'peta' | 'daftar') => void;
 }
@@ -84,6 +85,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCloseMobile,
   onLogout,
   onOpenSheetModal,
+  onOpenInstaller,
   currentTheme = 'unpad-blue',
   onOpenPublicPortal,
 }) => {
@@ -411,6 +413,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
               <span className="text-[10px] bg-[#FDB913] text-[#002B66] px-1.5 py-0.5 rounded font-black">
                 View Only
+              </span>
+            </button>
+          )}
+
+          {onOpenInstaller && (
+            <button
+              type="button"
+              id="sidebar-btn-installer-mysql"
+              onClick={onOpenInstaller}
+              className="w-full flex items-center justify-between py-2 px-2.5 rounded-lg bg-blue-600/30 hover:bg-blue-600/40 text-blue-200 hover:text-white border border-blue-400/30 text-xs font-bold transition-colors cursor-pointer"
+              title="Buka Sistem Installer Database MySQL"
+            >
+              <div className="flex items-center gap-2">
+                <Database className="w-3.5 h-3.5 text-blue-300" />
+                <span>Installer MySQL</span>
+              </div>
+              <span className="text-[10px] bg-blue-400 text-slate-900 px-1.5 py-0.5 rounded font-black">
+                Wizard
               </span>
             </button>
           )}
